@@ -31,11 +31,16 @@
 namespace ii {
 
 
+
 class Intersection;
 
 
+static short int CURRENT_UUID_MAX;
 const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
+const enum class VEHICLETYPES {CAR, TRUCK, IDK};
+
+// i need some help with these values, what are we actually doing here?
 const enum class JUNCTIONTYPE {TRAFFICLIGHT, WHATEVER};
 
 
@@ -43,7 +48,7 @@ class SumoInterface
 {
 public:
     void rebuildNet(Intersection*);
-    void performSim();
+    void performSim(std::size_t time);
     void updateIntersectionEmissions(Intersection*);
     void updateIntersectionSafety(Intersection*);
     void updateIntersectionEfficiency(Intersection*);
@@ -58,9 +63,15 @@ friend class Intersection;
 class Point3d
 {
 public:
-    Point3d(short int x, short int y, short int z) : x(x), y(y), z(z) {};
+    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {};
+    Point3d(std::vector<short int> coords) : x_(coords[0]), y_(coords[1]), z_(coords[2]) {}
+
+    short int x() {return this->x_;}
+    short int y() {return this->y_;}
+    short int z() {return this->z_;}
+
 private:
-    const short int x, y, z;
+    const short int x_, y_, z_;
 };
 
 
@@ -68,28 +79,27 @@ template<class T>
 class BezierCurve
 {
 public:
-    BezierCurve(T s, T e, std::vector<Point3d> handles);
+    BezierCurve(std::vector<Point3d> handles) {}
     std::vector<Point3d> rasterize();
+
+private:
 };
 
 
-class NodeData {
+class Node
+{
 public:
+    Node(Point3d) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
 private:
+    int UUID;
     Point3d loc;
+friend class Intersection;
 };
 
 
-class ScenarioNodeData : public NodeData {
-public:
-    short int getTrafficFlow() {return this->trafficFlow;}
-private:
-    short int trafficFlow;
-};
-
-
-class IntersectionNodeData {
+class IntersectionNode : public Node
+{
 public:
     JUNCTIONTYPE getJunctionType() {return this->junctionType;}
 private:
@@ -97,38 +107,41 @@ private:
 };
 
 
-template<class T>
-class Node
+class Edge
 {
 public:
-    T getData() const {return this->data;}
+    Edge(Node* s, Node* e) : s(s), e(e) {};
 
 private:
-    int UUID;
-    const T data;
-
-friend class Intersection;
-};
-
-
-class Edge {
-    // not implemented yet
+    Node* s; // starting node
+    Node* e; // ending node
 };
 
 
 class IntersectionEdge : public Edge
 {
+public:
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve<IntersectionNode*> shape) : Edge(s, e), shape(shape) {}
 private:
-    BezierCurve<IntersectionNodeData* > shape;
-    // UUID 
+    BezierCurve<IntersectionNode* > shape;
+};
+
+
+class ScenarioEdge : public Edge {
+public:
+    ScenarioEdge(Node* s, Node* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+private:
+    std::map<VEHICLETYPES, short int> demand;
 };
 
 
 class IntersectionRoute
 {
-    // implement route here
 public:
-    std::vector<Node<IntersectionNodeData>* > nodeList;
+    IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
+        : nodeList(nodeList), edgeList(edgeList) {}
+
+    std::vector<IntersectionNode*> nodeList;
     std::vector<IntersectionEdge> edgeList;
 };
 
@@ -136,11 +149,14 @@ public:
 class Intersection
 {
 public:
+    Intersection(std::vector<IntersectionRoute*> routes) : routes(routes) {}
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
+    double getMetric(METRICS);
     std::vector<IntersectionRoute*> routes;
 
 private:
+    std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, void(::ii::SumoInterface::*)(Intersection*)> > evaluations;
 };
 
@@ -157,17 +173,16 @@ const std::map<BACKENDS, std::map<METRICS, void(::ii::SumoInterface::*)(Intersec
 };
 
 
-
-template<class T>
-class Graph
+class IntersectionScenario
 {
-    // not implemented yet
-};
+public:
+    IntersectionScenario(std::vector<Node*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
+    std::vector<Node*> getNodes() const {return this->nodes;}
+    std::vector<ScenarioEdge> getEdges() const {return this->edges;}
 
-
-class IntersectionScenario : public Graph<Node<ScenarioNodeData> >
-{
-    // implement input graph here
+private:
+    std::vector<Node*> nodes;
+    std::vector<ScenarioEdge> edges;
 };
 
 }
