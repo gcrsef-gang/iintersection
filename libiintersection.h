@@ -91,6 +91,7 @@ class Node
 public:
     Node(Point3d) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
+    int getID() {return UUID;}
 private:
     int UUID;
     Point3d loc;
@@ -111,7 +112,8 @@ class Edge
 {
 public:
     Edge(Node* s, Node* e) : s(s), e(e) {};
-
+    int getStartNode() {return s->getID();}
+    int getEndNode() {return e->getID();}
 private:
     Node* s; // starting node
     Node* e; // ending node
@@ -121,7 +123,7 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve<IntersectionNode*> shape) : Edge(s, e), shape(shape) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve<IntersectionNode*> shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape) {}
 private:
     BezierCurve<IntersectionNode* > shape;
 };
