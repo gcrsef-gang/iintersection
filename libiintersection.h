@@ -140,7 +140,9 @@ class IntersectionRoute
 public:
     IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
         : nodeList(nodeList), edgeList(edgeList) {}
-
+    std::vector<IntersectionNode*> getNodeList() const {return this->nodeList;}
+    std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
+private:
     std::vector<IntersectionNode*> nodeList;
     std::vector<IntersectionEdge> edgeList;
 };
