@@ -31,27 +31,33 @@
 namespace ii {
 
 
-
+// forward class declarations
 class Intersection;
+class SumoInterface;
 
+static unsigned short int CURRENT_UUID_MAX;
+static const std::size_t SIMTIME;
 
-static short int CURRENT_UUID_MAX;
 const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 const enum class VEHICLETYPES {CAR, TRUCK, IDK};
 
 // i need some help with these values, what are we actually doing here?
-const enum class JUNCTIONTYPE {TRAFFICLIGHT, WHATEVER};
+const enum class JUNCTIONTYPE {TRAFFICLIGHT, SCENARIONODE};
+
+typedef void(*IntersectionEvalFunc)(const Intersection*);
 
 
 class SumoInterface
 {
 public:
-    void rebuildNet(Intersection*);
-    void performSim(std::size_t time);
-    void updateIntersectionEmissions(Intersection*);
-    void updateIntersectionSafety(Intersection*);
-    void updateIntersectionEfficiency(Intersection*);
+    void rebuildNet(const Intersection*);
+    void performSim(const std::size_t time);
+    void updateIntersectionEmissions(const Intersection*);
+    void updateIntersectionSafety(const Intersection*);
+    void updateIntersectionEfficiency(const Intersection*);
+
+    static SumoInterface* getInstance();
 
 private:
     // MSNet* net;
@@ -75,16 +81,15 @@ private:
 };
 
 
-template<class T>
 class BezierCurve
 {
 public:
-    BezierCurve(T s, T e, std::vector<Point3d> handles) : s(s), e(e) {}
+    BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e) {}
     std::vector<Point3d> rasterize();
 
 private:
-    T s;
-    T e;
+    IntersectionNode* s;
+    IntersectionNode* e;
 };
 
 
@@ -93,9 +98,9 @@ class Node
 public:
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
-    int getID() {return UUID;}
+    unsigned short int getID() {return UUID;}
 private:
-    int UUID;
+    unsigned short int UUID;
     Point3d loc;
 friend class Intersection;
 };
@@ -104,6 +109,7 @@ friend class Intersection;
 class IntersectionNode : public Node
 {
 public:
+    IntersectionNode(Point3d loc, JUNCTIONTYPE junctionType) : Node(loc), junctionType(junctionType) {}
     JUNCTIONTYPE getJunctionType() {return this->junctionType;}
 private:
     JUNCTIONTYPE junctionType;
@@ -114,8 +120,9 @@ class Edge
 {
 public:
     Edge(Node* s, Node* e) : s(s), e(e) {};
-    int getStartNode() {return s->getID();}
-    int getEndNode() {return e->getID();}
+    unsigned short int getStartNode() const {return s->getID();}
+    unsigned short int getEndNode() const {return e->getID();}
+
 private:
     Node* s; // starting node
     Node* e; // ending node
@@ -125,9 +132,11 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve<IntersectionNode*> shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape) {}
+    BezierCurve getShape() const {return (shape);}
+
 private:
-    BezierCurve<IntersectionNode* > shape;
+    BezierCurve shape;
 };
 
 
@@ -146,6 +155,7 @@ public:
         : nodeList(nodeList), edgeList(edgeList) {}
     std::vector<IntersectionNode*> getNodeList() const {return this->nodeList;}
     std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
+
 private:
     std::vector<IntersectionNode*> nodeList;
     std::vector<IntersectionEdge> edgeList;
@@ -163,17 +173,17 @@ public:
 
 private:
     std::map<METRICS, double> currentMetrics;
-    const static std::map<BACKENDS, std::map<METRICS, void(::ii::SumoInterface::*)(Intersection*)> > evaluations;
+    const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
 };
 
 
-const std::map<BACKENDS, std::map<METRICS, void(::ii::SumoInterface::*)(Intersection*)> > Intersection::evaluations = 
+const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
 {
     {
         BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, ::ii::SumoInterface::updateIntersectionEfficiency},
-            {METRICS::SAFETY, ::ii::SumoInterface::updateIntersectionSafety},
-            {METRICS::EMISSIONS, ::ii::SumoInterface::updateIntersectionEmissions}
+            {METRICS::EFFICIENCY, SumoInterface::updateIntersectionEfficiency},
+            {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
+            {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
         }
     }
 };
@@ -191,6 +201,33 @@ private:
     std::vector<ScenarioEdge> edges;
 };
 
+
+
+
+
+void Intersection::simulate(BACKENDS back) const
+{
+    if (back == BACKENDS::SUMO)
+    {
+        SumoInterface::getInstance()->rebuildNet(this);
+        SumoInterface::getInstance()->performSim(SIMTIME);
+    }
 }
+
+
+void Intersection::updateMetrics(BACKENDS back)
+{
+    const std::map<METRICS, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
+
+    for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
+    {
+        IntersectionEvalFunc func = (it->second);
+        func(this);
+    }
+}
+
+
+}
+
 
 #endif
