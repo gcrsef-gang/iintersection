@@ -1,1 +1,13 @@
+# Dev
+__pycache__/
+venv
 .vscode/
+
+# Cython
+build/
+libiintersection.cpp
+libiintersection.*.so
+
+# Misc.
+test.xml
+test.py
