@@ -79,17 +79,19 @@ template<class T>
 class BezierCurve
 {
 public:
-    BezierCurve(std::vector<Point3d> handles) {}
+    BezierCurve(T s, T e, std::vector<Point3d> handles) : s(s), e(e) {}
     std::vector<Point3d> rasterize();
 
 private:
+    T s;
+    T e;
 };
 
 
 class Node
 {
 public:
-    Node(Point3d) {this->UUID = ++CURRENT_UUID_MAX;}
+    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
 private:
     int UUID;
