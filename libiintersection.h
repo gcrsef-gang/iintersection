@@ -176,6 +176,7 @@ public:
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+    std::string getEdgeXML();
     std::string getNodeXML();
     std::vector<IntersectionRoute*> routes;
 
@@ -250,7 +251,7 @@ void Intersection::getNodeXML() {
     Point3d* nodeLoc;
     int nodeID = 0;
     std::stringstream nodeTag;
-    for ( IntersectionNode* node : route->getNodeList() ) {
+    for ( IntersectionNode* node : nodes ) {
         nodeLoc = node->getLoc();
 
         nodeTag << "\t<node ";
