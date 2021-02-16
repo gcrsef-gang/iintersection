@@ -84,6 +84,7 @@ private:
 class BezierCurve
 {
 public:
+    BezierCurve() {;}
     BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e) {}
     std::vector<Point3d> rasterize();
 
@@ -132,17 +133,21 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit) {}
     BezierCurve getShape() const {return (shape);}
-
+    short int getNumLanes() const {return this->numlanes;}
+    short int getSpeedLimit() const {return this->speedlimit;}
 private:
     BezierCurve shape;
+    short int numlanes;
+    short int speedlimit;
 };
 
 
 class ScenarioEdge : public Edge {
 public:
     ScenarioEdge(Node* s, Node* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+    std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
 private:
     std::map<VEHICLETYPES, short int> demand;
 };
