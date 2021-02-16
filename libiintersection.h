@@ -20,7 +20,10 @@
 #endif
 
 
+#include <algorithm>
 #include <map>
+#include <sstream>
+#include <string>
 #include <vector>
 
 
@@ -41,9 +44,8 @@ static const std::size_t SIMTIME;
 const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 const enum class VEHICLETYPES {CAR, TRUCK, IDK};
-
-// i need some help with these values, what are we actually doing here?
-const enum class JUNCTIONTYPE {TRAFFICLIGHT, SCENARIONODE};
+const enum class JUNCTIONTYPE {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
+const std::map<int, std::string> JUNCTIONTYPE_NAMES = {{0, "priority"}, {1, "traffic_light"}, {2, "right_before_left"}, {3, "unregulated"}, {4, "priority_stop"}, {5, "traffic_light_unregulated"}, {6, "allway_stop"}, {7, "zipper"}, {8, "traffic_light_on_red"}};
 
 typedef void(*IntersectionEvalFunc)(const Intersection*);
 
@@ -174,6 +176,7 @@ public:
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+    std::string getNodeXML();
     std::vector<IntersectionRoute*> routes;
 
 private:
@@ -229,6 +232,39 @@ void Intersection::updateMetrics(BACKENDS back)
         IntersectionEvalFunc func = (it->second);
         func(this);
     }
+}
+
+
+void Intersection::getNodeXML() {
+
+    std::vector<IntersectionNode*> nodes;
+    for ( IntersectionRoute* route : routes ) {
+        for ( IntersectionNode* node : route->getNodeList() ) {
+            nodes.push_back(node);
+        }
+    }
+
+    std::vector<std::string> xmlLines;
+    xmlLines.push_back("<nodes>\n\t");
+
+    Point3d* nodeLoc;
+    int nodeID = 0;
+    std::stringstream nodeTag;
+    for ( IntersectionNode* node : route->getNodeList() ) {
+        nodeLoc = node->getLoc();
+
+        nodeTag << "\t<node ";
+        nodeTag << "id=\"" << nodeID << "\" ";
+        nodeTag << "x=\"" << nodeLoc->x() << "\" ";
+        nodeTag << "y=\"" << nodeLoc->y() << "\" ";
+        nodeTag << "z=\"" << nodeLoc->z() << "\" ";
+        nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[node->getJunctionType] << "\"/>\n";
+
+        xmlLines.push_back(nodeTag.str());
+        nodeTag.clear();
+        nodeID++;
+    }
+    xmlLines.push_back("</nodes>");
 }
 
 
