@@ -132,9 +132,10 @@ def generate_inital_population(input_scenario):
                     d1 = math.sqrt(_get_squared_distance((start_x, start_y), (end_x, end_x)))
                     r1_distances = rng.integers(low=(-0.5 * d1), high=(1.5 * d1), size=n_bezier_handles)
                     r2_distances = rng.integers(low=(-0.5 * d1), high=(0.5 * d1), size=n_bezier_handles)
-                    R1_points = [[start_x + r1 * math.cos(theta), start_y + r1 * math.sin(theta)]
-                                 for r1 in d1_distances]
-                    points = [[R1[0] + r2 * math.sin(-theta), R1[1] + r2 * math.cos(-theta)]]
+                    for r1, r2 in zip(r1_distances, r2_distances):
+                        x = start_x + r1 * math.cos(theta) - r2 * math.sin(theta)
+                        y = start_y + r1 * math.sin(theta) + r2 * math.cos(theta)
+                        points.append([x, y])
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
