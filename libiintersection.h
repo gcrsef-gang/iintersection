@@ -45,18 +45,23 @@ const enum class VEHICLETYPES {CAR, TRUCK, IDK};
 // i need some help with these values, what are we actually doing here?
 const enum class JUNCTIONTYPE {TRAFFICLIGHT, SCENARIONODE};
 
-typedef void(*IntersectionEvalFunc)(const Intersection*);
+typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(const ::ii::Intersection*);
 
 
-class SumoInterface
+class BackendsManager
+{
+public:
+    void updateIntersectionEmissions(const Intersection*);
+    virtual void updateIntersectionSafety(const Intersection*) = 0;
+    virtual void updateIntersectionEfficiency(const Intersection*) = 0;
+};
+
+
+class SumoInterface : public BackendsManager
 {
 public:
     void rebuildNet(const Intersection*);
     void performSim(const std::size_t time);
-    void updateIntersectionEmissions(const Intersection*);
-    void updateIntersectionSafety(const Intersection*);
-    void updateIntersectionEfficiency(const Intersection*);
-
     static SumoInterface* getInstance();
 
 private:
@@ -84,12 +89,17 @@ private:
 class BezierCurve
 {
 public:
-    BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e) {}
+    BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e), handles(handles) {}
     std::vector<Point3d> rasterize();
+    IntersectionNode* getStartNode() const {return this->s;}
+    IntersectionNode* getEndNode() const {return this->e;}
+    std::vector<Point3d> getHandles() const {return this->handles;}
+
 
 private:
     IntersectionNode* s;
     IntersectionNode* e;
+    std::vector<Point3d> handles;
 };
 
 
@@ -177,16 +187,18 @@ private:
 };
 
 
-const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
-{
-    {
-        BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, SumoInterface::updateIntersectionEfficiency},
-            {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
-            {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
-        }
-    }
-};
+// const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
+// {
+//     {
+//         BACKENDS::SUMO, {
+//             {METRICS::EFFICIENCY, BackendsManager::updateIntersectionEfficiency}
+//             // {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
+//             // {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
+//         }
+//     }
+// };
+
+// IntersectionEvalFunc evals = &::ii::BackendsManager::updateIntersectionEmissions;
 
 
 class IntersectionScenario
@@ -222,7 +234,7 @@ void Intersection::updateMetrics(BACKENDS back)
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
         IntersectionEvalFunc func = (it->second);
-        func(this);
+        (SumoInterface::getInstance()->*func)(this);
     }
 }
 
