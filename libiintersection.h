@@ -369,14 +369,14 @@ std::string Intersection::getEdgeXML() const
     for (int i = 0; i < edges.size(); i++)
     {
         edgeTag << "\t<edge id=\"" << i << "e\" ";
-        edgeTag << "from=\"" << sumoNodeIDs[edges[i].getStartNode()] << "\" ";
-        edgeTag << "to=\"" << sumoNodeIDs[edges[i].getEndNode()] << "\" ";
+        edgeTag << "from=\"" << sumoNodeIDs[(IntersectionNode*)edges[i].getStartNode()] << "\" ";
+        edgeTag << "to=\"" << sumoNodeIDs[(IntersectionNode*)edges[i].getEndNode()] << "\" ";
         edgeTag << "priority=\"" << edges[i].getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i].getNumLanes() << "\" ";
         edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\"/>\n";
 
-        xmlOutput += nodeTag.str();
-        nodeTag.clear();
+        xmlOutput += edgeTag.str();
+        edgeTag.clear();
     }
 
     xmlOutput += "</edges>";
