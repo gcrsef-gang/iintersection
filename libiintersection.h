@@ -149,7 +149,7 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
     short int getNumLanes() const {return this->numlanes;}
@@ -159,6 +159,7 @@ private:
     BezierCurve shape;
     short int numlanes;
     short int speedlimit;
+    short int priority;
 };
 
 
@@ -281,7 +282,7 @@ std::string Intersection::getNodeXML() const
         nodeTag << "x=\"" << nodeLoc->x() << "\" ";
         nodeTag << "y=\"" << nodeLoc->y() << "\" ";
         nodeTag << "z=\"" << nodeLoc->z() << "\" ";
-        nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[nodes[i]->getJunctionType] << "\"/>\n";
+        nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[nodes[i]->getJunctionType()] << "\"/>\n";
 
         xmlOutput += nodeTag.str();
         nodeTag.clear();
