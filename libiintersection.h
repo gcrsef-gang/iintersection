@@ -274,8 +274,7 @@ std::string Intersection::getNodeXML() const
 
     for (int i = 0; i < nodes.size(); i++)
     {
-        Point3d* nodeLoc;
-        nodeLoc = nodes[i]->getLoc();
+        Point3d* nodeLoc = nodes[i]->getLoc();
 
         nodeTag << "\t<node ";
         nodeTag << "id=\"" << i << "\" ";
