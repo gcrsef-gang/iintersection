@@ -29,6 +29,7 @@ COORD_STDEV_FACTOR = 0.25
 END_PROB = 0.5
 MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
+MAX_PRIORITY = 10
 
 # Random number generator.
 rng = default_rng(42069)
@@ -140,11 +141,12 @@ def generate_inital_population(input_scenario):
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
 
-                # Create edge with random speed limit and number of lanes.
+                # Create edge with random priority, speed limit, and number of lanes.
+                priority = rng.choice(arange(1, MAX_PRIORITY + 1))
                 num_lanes = rng.choice(arange(1, MAX_LANES + 1))
                 speed_limit = rng.random() * MAX_SPEED_LIMIT
                 edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
-                                        speed_limit)
+                                        speed_limit, priority)
                 route_edges.append(edge)
 
                 if exit_:
