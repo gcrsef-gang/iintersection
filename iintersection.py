@@ -10,9 +10,10 @@ from numpy import arange
 from numpy.random import default_rng
 
 from libiintersection import (
-    BACKENDS, VEHICLETYPES, JUNCTIONTYPE,
-    BezierCurve, Intersection, IntersectionNode, IntersectionRoute, IntersectionEdge,
-    IntersectionScenario, Node, ScenarioEdge
+    METRICS, BACKENDS, VEHICLETYPES, JUNCTIONTYPE,
+    PyBezierCurve, PyIntersection, PyIntersectionNode, PyIntersectionRoute, PyIntersectionEdge,
+    PyIntersectionScenario, PyXMLIntersectionSenario, PyNode, PyScenarioEdge,
+    PyNodePointer, PyIntersectionNodePointer, PyIntersectionRoutePointer
 )
 
 
@@ -78,25 +79,25 @@ def generate_inital_population(input_scenario):
         node_z_coords = np.array(node_z_coords, dtype=np.int32)
         node_types = rng.integers(low=0, high=len(JUNCTIONTYPE), size=num_nodes[i])
         intersection_nodes = [
-            IntersectionNode(x, y, z, node_type) for x, y, z, node_type
+            PyIntersectionNode(x, y, z, node_type) for x, y, z, node_type
             in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
         ]
 
         # Generate a route for each edge in the input scenario.
         intersection_routes = []
-        for input_edge in input_scenario:
+        for input_edge in input_scenario.getEdges():
             start_node = input_edge.getStartNode()
             end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [IntersectionNode(start_node)]
+            route_nodes = [PyIntersectionNode(start_node)]
             route_edges = []
             while True:
                 exit_ = False
 
                 # 50/50 chance of connecting the previous node to the end node of the route.
                 if rng.choice(2, p=[END_PROB, 1 - END_PROB]):
-                    route_nodes.append(IntersectionNode(end_node))
+                    route_nodes.append(PyIntersectionNode(end_node))
                     exit_ = True
                 elif len(unchosen_nodes) > 0:
                     # Choose a random node with a probability proportional to its distance from the
@@ -113,7 +114,7 @@ def generate_inital_population(input_scenario):
                     unchosen_nodes.remove(next_node_index)
                 else:
                     # All the nodes of the intersection are in this route.
-                    route_nodes.append(IntersectionNode(end_node))
+                    route_nodes.append(PyIntersectionNode(end_node))
                     exit_ = True
 
                 # Generate an edge between the two most recently added nodes in the route.
@@ -138,25 +139,25 @@ def generate_inital_population(input_scenario):
                         points.append([x, y])
                 else:
                     points = []
-                bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
+                bezier_curve = PyBezierCurve(route_nodes[-2], route_nodes[-1], points)
 
                 # Create edge with random priority, speed limit, and number of lanes.
                 priority = rng.choice(arange(1, MAX_PRIORITY + 1))
                 num_lanes = rng.choice(arange(1, MAX_LANES + 1))
                 speed_limit = rng.random() * MAX_SPEED_LIMIT
-                edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
+                edge = PyIntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
                                         speed_limit, priority)
                 route_edges.append(edge)
 
                 if exit_:
                     break
             
-            intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
+            intersection_routes.append(PyIntersectionRoute(route_nodes, route_edges))
 
         # Create a new row of intersections.
         if i % row_size == 0:
             intersections.append([])
-        intersections[-1].append(Intersection(intersection_routes))
+        intersections[-1].append(PyIntersection(intersection_routes))
 
     return intersections
 
@@ -203,7 +204,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Generate scenario object from xml file.
-    input_scenario = IntersectionScenario.fromXMLFile(args.scenario)
+    input_scenario = PyXMLIntersectionScenario(args.scenario)
 
     # Set constants.
     if args.backend:
@@ -225,4 +226,4 @@ if __name__ == "__main__":
         with open(node_output_files[i], 'w+') as f:
             f.write(node_output_files[i], intersection.getNodeXML())
         with open(edge_output_files[i], 'w+') as f:
-            f.write(edge_output_files[i], intersection.getNodeXML())
+            f.write(edge_output_files[i], intersection.getEdgeXML())
