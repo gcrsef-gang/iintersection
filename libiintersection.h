@@ -49,7 +49,7 @@ const enum class VEHICLETYPES {CAR, TRUCK, IDK};
 const std::map<VEHICLETYPES, std::string> VEHICLETYPE_NAMES = {{CAR, "car"}, {TRUCK, "truck"}, {IDK, "idk"}};
 const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", CAR}, {"truck", TRUCK}, {"idk", IDK}}; 
 const enum class JUNCTIONTYPE {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
-const std::map<JUNCTIONTYPE, std::string> JUNCTIONTYPE_NAMES = {{PRIORITY, "priority"}, {TRAFFIC_LIGHT, "traffic_light"}, {RIGHT_BEFORE_LEFT, "right_before_left"}, {UNREGULATED, "unregulated"}, {PRIORITY_STOP, "priority_stop"}, {TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {ALLWAY_STOP, "allway_stop"}, {ZIPPER, "zipper"}, {TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
+const std::map<JUNCTIONTYPE, std::string> JUNCTIONTYPE_NAMES = {{JUNCTIONTYPE::PRIORITY, "priority"}, {JUNCTIONTYPE::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPE::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPE::UNREGULATED, "unregulated"}, {JUNCTIONTYPE::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPE::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPE::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPE::ZIPPER, "zipper"}, {JUNCTIONTYPE::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(const ::ii::Intersection*);
 
@@ -219,23 +219,23 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 {
     {
         BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, BackendsManager::updateIntersectionEfficiency}
-            // {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
-            // {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
+            {METRICS::EFFICIENCY, SumoInterface::updateIntersectionEfficiency},
+            {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
+            {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
         }
     }
 };
-
-IntersectionEvalFunc evals = &::ii::BackendsManager::updateIntersectionEmissions;
 
 
 class IntersectionScenario
 {
 public:
     IntersectionScenario(std::vector<Node*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
-    IntersectionScenario(std::string xmlFilePath);
+    
     std::vector<Node*> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
+
+    static IntersectionScenario LoadIntersectionScenario(std::string xmlFilePath);
 
 private:
     std::vector<Node*> nodes;
@@ -243,7 +243,9 @@ private:
 };
 
 
-IntersectionScenario(std::string xmlFilePath)
+
+
+IntersectionScenario IntersectionScenario::LoadIntersectionScenario(std::string xmlFilePath)
 {
     // Load document.
     pugi::xml_document doc;
@@ -253,6 +255,7 @@ IntersectionScenario(std::string xmlFilePath)
         std::cerr << "Could not parse XML." << std::endl;
         std::cerr << result.description() << std::endl;
     }
+
     pugi::xml_node xmlScenario = doc.child("scenario");
 
     // Append nodes to vector.
@@ -277,6 +280,7 @@ IntersectionScenario(std::string xmlFilePath)
         for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute()) {
             std::string attrName = attr.name();
             int pos = attrName.find("_demand");
+
             // If attribute contains demand data.
             if (pos != string::npos) {
                 VEHICLETYPES vehicleType = VEHICLETYPE_INDICES[attrName.substr(0, pos)];
@@ -284,6 +288,7 @@ IntersectionScenario(std::string xmlFilePath)
                 demand.insert(std::pair<VEHICLETYPES, short int>(vehicleType, vehicleDemand));
             }
         }
+
         edges.push_back(ScenarioEdge(s, e, demand));
     }
 }
