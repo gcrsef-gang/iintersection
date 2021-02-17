@@ -9,5 +9,6 @@ libiintersection.cpp
 libiintersection.*.so
 
 # Misc.
-test.xml
+test.cpp
 test.py
+test.xml

@@ -23,9 +23,9 @@ MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
 
 # Initial population paramters.
-MAX_NODES = 20
-MIN_COORD = -10000
-MAX_COORD = 10000
+NUM_NODES_MEAN = 15
+NUM_NODES_STDEV = 7
+COORD_STDEV_FACTOR = 0.25
 END_PROB = 0.5
 MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
@@ -46,30 +46,47 @@ def generate_inital_population(input_scenario):
     Generates the initial grid of solutions.
     """
     input_nodes = input_scenario.getNodes()
-    n_input_nodes = len(input_nodes)
     # Number of nodes for each intersection (excluding input nodes).
-    n_nodes = rng.integers(low=0, high=MAX_NODES + 1, size=POPULATION_SIZE)
+    num_nodes = rng.normal(loc=NUM_NODES_MEAN, scale=NUM_NODES_STDEV, size=POPULATION_SIZE)
+    num_nodes = np.array(num_nodes, dtype=np.int32)
 
     intersections = []  # 2D square grid.
     row_size = math.sqrt(POPULATION_SIZE)
     for i in range(POPULATION_SIZE):
 
         # Generate the nodes of the intersection.
-        node_coords = rng.integers(low=MIN_COORD, high=MAX_COORD + 1, size=(n_nodes[i], 3))
-        node_types = rng.integers(low=0, high=len(JUNCTIONTYPE), size=n_nodes[i])
-        intersection_nodes = []
-        for n in range(n_nodes[i]):
-            x, y, z = list(node_coords[n])
-            node_type = node_types[n]
-            intersection_nodes.append(IntersectionNode(x, y, z, node_type))
+        input_nodes_coords = [node.getLoc() for node in input_nodes]
+        input_nodes_max_x = max([loc[0] for loc in input_nodes_coords])
+        input_nodes_max_y = max([loc[1] for loc in input_nodes_coords])
+        input_nodes_max_z = max([loc[2] for loc in input_nodes_coords])
+        input_nodes_min_x = min([loc[0] for loc in input_nodes_coords])
+        input_nodes_min_y = min([loc[1] for loc in input_nodes_coords])
+        input_nodes_min_z = min([loc[2] for loc in input_nodes_coords])
+        # Choose points on a normal distribution scaled according to the locations of the nodes in
+        # the input scenario.
+        node_x_coords = rng.normal(loc=(input_nodes_max_x + input_nodes_min_x) / 2,
+                                   scale=(input_nodes_max_x - input_nodes_min_x) * COORD_STDEV_FACTOR,
+                                   size=num_nodes[i])
+        node_y_coords = rng.normal(loc=(input_nodes_max_y + input_nodes_min_y) / 2,
+                                   scale=(input_nodes_max_y - input_nodes_min_y) * COORD_STDEV_FACTOR,
+                                   size=num_nodes[i])
+        node_z_coords = rng.normal(loc=(input_nodes_max_z + input_nodes_min_z) / 2,
+                                   scale=(input_nodes_max_z - input_nodes_min_z) * COORD_STDEV_FACTOR,
+                                   size=num_nodes[i])
+        node_x_coords = np.array(node_x_coords, dtype=np.int32)
+        node_y_coords = np.array(node_y_coords, dtype=np.int32)
+        node_z_coords = np.array(node_z_coords, dtype=np.int32)
+        node_types = rng.integers(low=0, high=len(JUNCTIONTYPE), size=num_nodes[i])
+        intersection_nodes = [
+            IntersectionNode(x, y, z, node_type) for x, y, z, node_type
+            in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
+        ]
 
         # Generate a route for each edge in the input scenario.
         intersection_routes = []
         for input_edge in input_scenario:
-            start = input_edge.getStartNode()
-            end = input_edge.getEndNode()
-            start_node = [node for node in input_nodes if node.getID() == start][0]
-            end_node = [node for node in input_nodes if node.getID() == end][0]
+            start_node = input_edge.getStartNode()
+            end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
             route_nodes = [IntersectionNode(start_node)]
@@ -107,13 +124,18 @@ def generate_inital_population(input_scenario):
                 start_x, start_y, start_z = route_nodes[-2].getLoc()
                 end_x, end_y, end_z = route_nodes[-1].getLoc()
                 if n_bezier_handles:
-                    x_coords = rng.integers(low=min(start_x, end_x),
-                                            high=max(start_x, end_x), size=n_bezier_handles)
-                    y_coords = rng.integers(low=min(start_y, end_y),
-                                            high=max(start_y, end_y), size=n_bezier_handles)
-                    z_coords = rng.integers(low=min(start_z, end_z),
-                                            high=max(start_z, end_z), size=n_bezier_handles)
-                    points = [[x, y, z] for x, y, z in zip(x_coords, y_coords, z_coords)]
+                    # Create a rectangle between the start and end points and choose random points
+                    # within that rectangle.
+                    m = (start_x - end_x) / (start_y - end_y)
+                    theta = math.atan(m)
+                    perp_m = -1 / m
+                    d1 = math.sqrt(_get_squared_distance((start_x, start_y), (end_x, end_x)))
+                    r1_distances = rng.integers(low=(-0.5 * d1), high=(1.5 * d1), size=n_bezier_handles)
+                    r2_distances = rng.integers(low=(-0.5 * d1), high=(0.5 * d1), size=n_bezier_handles)
+                    for r1, r2 in zip(r1_distances, r2_distances):
+                        x = start_x + r1 * math.cos(theta) - r2 * math.sin(theta)
+                        y = start_y + r1 * math.sin(theta) + r2 * math.cos(theta)
+                        points.append([x, y])
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
@@ -227,6 +249,6 @@ if __name__ == "__main__":
     edge_output_files = [f"intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
     for i, intersection in enumerate(optimized_intersections):
         with open(node_output_files[i], 'w+') as f:
-            f.write(node_output_files[i], intersection.get_node_xml())
+            f.write(node_output_files[i], intersection.getNodeXML())
         with open(edge_output_files[i], 'w+') as f:
-            f.write(edge_output_files[i], intersection.get_edge_xml())
+            f.write(edge_output_files[i], intersection.getNodeXML())

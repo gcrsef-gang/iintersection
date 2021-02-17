@@ -20,7 +20,10 @@
 #endif
 
 
+#include <algorithm>
 #include <map>
+#include <sstream>
+#include <string>
 #include <vector>
 
 
@@ -41,9 +44,8 @@ static const std::size_t SIMTIME;
 const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 const enum class VEHICLETYPES {CAR, TRUCK, IDK};
-
-// i need some help with these values, what are we actually doing here?
-const enum class JUNCTIONTYPE {TRAFFICLIGHT, SCENARIONODE};
+const enum class JUNCTIONTYPE {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
+const std::map<int, std::string> JUNCTIONTYPE_NAMES = {{PRIORITY, "priority"}, {TRAFFIC_LIGHT, "traffic_light"}, {RIGHT_BEFORE_LEFT, "right_before_left"}, {UNREGULATED, "unregulated"}, {PRIORITY_STOP, "priority_stop"}, {TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {ALLWAY_STOP, "allway_stop"}, {ZIPPER, "zipper"}, {TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(const ::ii::Intersection*);
 
@@ -89,12 +91,13 @@ private:
 class BezierCurve
 {
 public:
+    BezierCurve() {}
     BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e), handles(handles) {}
+
     std::vector<Point3d> rasterize();
     IntersectionNode* getStartNode() const {return this->s;}
     IntersectionNode* getEndNode() const {return this->e;}
     std::vector<Point3d> getHandles() const {return this->handles;}
-
 
 private:
     IntersectionNode* s;
@@ -107,11 +110,14 @@ class Node
 {
 public:
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
+
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() {return UUID;}
+
 private:
     unsigned short int UUID;
     Point3d loc;
+
 friend class Intersection;
 };
 
@@ -121,6 +127,7 @@ class IntersectionNode : public Node
 public:
     IntersectionNode(Point3d loc, JUNCTIONTYPE junctionType) : Node(loc), junctionType(junctionType) {}
     JUNCTIONTYPE getJunctionType() {return this->junctionType;}
+
 private:
     JUNCTIONTYPE junctionType;
 };
@@ -142,17 +149,26 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape) {}
-    BezierCurve getShape() const {return (shape);}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit) {}
+    
+    BezierCurve getShape() const {return this->shape;}
+    short int getNumLanes() const {return this->numlanes;}
+    short int getSpeedLimit() const {return this->speedlimit;}
 
 private:
     BezierCurve shape;
+    short int numlanes;
+    short int speedlimit;
 };
 
 
-class ScenarioEdge : public Edge {
+class ScenarioEdge : public Edge
+{
 public:
     ScenarioEdge(Node* s, Node* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+
+    std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
+
 private:
     std::map<VEHICLETYPES, short int> demand;
 };
@@ -163,6 +179,7 @@ class IntersectionRoute
 public:
     IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
         : nodeList(nodeList), edgeList(edgeList) {}
+
     std::vector<IntersectionNode*> getNodeList() const {return this->nodeList;}
     std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
 
@@ -176,9 +193,14 @@ class Intersection
 {
 public:
     Intersection(std::vector<IntersectionRoute*> routes) : routes(routes) {}
+
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+
+    std::string getEdgeXML();
+    std::string getNodeXML();
+
     std::vector<IntersectionRoute*> routes;
 
 private:
@@ -187,18 +209,18 @@ private:
 };
 
 
-// const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
-// {
-//     {
-//         BACKENDS::SUMO, {
-//             {METRICS::EFFICIENCY, BackendsManager::updateIntersectionEfficiency}
-//             // {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
-//             // {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
-//         }
-//     }
-// };
+const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
+{
+    {
+        BACKENDS::SUMO, {
+            {METRICS::EFFICIENCY, BackendsManager::updateIntersectionEfficiency}
+            // {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
+            // {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
+        }
+    }
+};
 
-// IntersectionEvalFunc evals = &::ii::BackendsManager::updateIntersectionEmissions;
+IntersectionEvalFunc evals = &::ii::BackendsManager::updateIntersectionEmissions;
 
 
 class IntersectionScenario
@@ -212,9 +234,6 @@ private:
     std::vector<Node*> nodes;
     std::vector<ScenarioEdge> edges;
 };
-
-
-
 
 
 void Intersection::simulate(BACKENDS back) const
@@ -236,6 +255,42 @@ void Intersection::updateMetrics(BACKENDS back)
         IntersectionEvalFunc func = (it->second);
         (SumoInterface::getInstance()->*func)(this);
     }
+}
+
+
+void Intersection::getNodeXML()
+{
+    std::vector<IntersectionNode*> nodes;
+    for (IntersectionRoute* route : routes)
+    {
+        for (IntersectionNode* node : route->getNodeList())
+        {
+            nodes.push_back(node);
+        }
+    }
+
+    std::vector<std::string> xmlLines;
+    xmlLines.push_back("<nodes>\n\t");
+
+    std::stringstream nodeTag;
+
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        Point3d* nodeLoc;
+        nodeLoc = nodes[i]->getLoc();
+
+        nodeTag << "\t<node ";
+        nodeTag << "id=\"" << i << "\" ";
+        nodeTag << "x=\"" << nodeLoc->x() << "\" ";
+        nodeTag << "y=\"" << nodeLoc->y() << "\" ";
+        nodeTag << "z=\"" << nodeLoc->z() << "\" ";
+        nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[nodes[i]->getJunctionType] << "\"/>\n";
+
+        xmlLines.push_back(nodeTag.str());
+        nodeTag.clear();
+    }
+
+    xmlLines.push_back("</nodes>");
 }
 
 
