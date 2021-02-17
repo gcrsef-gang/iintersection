@@ -21,11 +21,13 @@
 
 
 #include <algorithm>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
 
+#include "pugixml/pugixml.hpp"
 
 /**
  * \brief Entire iintersection namespace, with different backend interfaces
@@ -44,7 +46,8 @@ static const std::size_t SIMTIME;
 const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 const enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<VEHICLETYPES, std::string> {{CAR, "car"}, {TRUCK, "truck"}, {IDK, "idk"}}
+const std::map<VEHICLETYPES, std::string> VEHICLETYPE_NAMES = {{CAR, "car"}, {TRUCK, "truck"}, {IDK, "idk"}};
+const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", CAR}, {"truck", TRUCK}, {"idk", IDK}}; 
 const enum class JUNCTIONTYPE {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
 const std::map<JUNCTIONTYPE, std::string> JUNCTIONTYPE_NAMES = {{PRIORITY, "priority"}, {TRAFFIC_LIGHT, "traffic_light"}, {RIGHT_BEFORE_LEFT, "right_before_left"}, {UNREGULATED, "unregulated"}, {PRIORITY_STOP, "priority_stop"}, {TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {ALLWAY_STOP, "allway_stop"}, {ZIPPER, "zipper"}, {TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
@@ -230,6 +233,7 @@ class IntersectionScenario
 {
 public:
     IntersectionScenario(std::vector<Node*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
+    IntersectionScenario(std::string xmlFilePath);
     std::vector<Node*> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
 
@@ -237,6 +241,52 @@ private:
     std::vector<Node*> nodes;
     std::vector<ScenarioEdge> edges;
 };
+
+
+IntersectionScenario(std::string xmlFilePath)
+{
+    // Load document.
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_file("test.xml");
+    if (!result)
+    {
+        std::cerr << "Could not parse XML." << std::endl;
+        std::cerr << result.description() << std::endl;
+    }
+    pugi::xml_node xmlScenario = doc.child("scenario");
+
+    // Append nodes to vector.
+    pugi::xml_node nodesList = xmlScenario.child("nodes");
+    std::map<std::string, Node*> nodeIDMap;
+    for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
+    {
+        Node node({xmlNode.attribute("x").as_int(), xmlNode.attribute("y").as_int(), xmlNode.attribute("z").as_int()});
+        nodeIDMap.insert(std::pair<std::string, Node*>(xmlNode.attribute("id").value(), &node));
+        nodes.push_back(&node);
+    }
+
+    // Append edges to vector.
+    pugi::xml_node edgesList = xmlScenario.child("edges");
+    for (pugi::xml_node xmlEdge = edgesList.first_child(); xmlEdge; xmlEdge = xmlEdge.next_sibling())
+    {
+        Node* s, e;
+        s = nodeIDMap[xmlEdge.attribute("from").value()]
+        e = nodeIDMap[xmlEdge.attribute("to").value()]
+        std::map<VEHICLETYPES, short int> demand;
+
+        for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute()) {
+            std::string attrName = attr.name();
+            int pos = attrName.find("_demand");
+            // If attribute contains demand data.
+            if (pos != string::npos) {
+                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES[attrName.substr(0, pos)];
+                short int vehicleDemand = attr.as_int();
+                demand.insert(std::pair<VEHICLETYPES, short int>(vehicleType, vehicleDemand));
+            }
+        }
+        edges.push_back(ScenarioEdge(s, e, demand));
+    }
+}
 
 
 void Intersection::simulate(BACKENDS back) const
@@ -309,7 +359,7 @@ std::string Intersection::getEdgeXML() const
         std::vector<IntersectionNode*> routeNodes = route->getNodeList();
         for (int i = 0; i < routeNodes.size(); i++)
         {
-            sumoNodeIDs.insert(pair<IntersectionNode*, int>(routeNodes[i], i));
+            sumoNodeIDs.insert(std::pair<IntersectionNode*, int>(routeNodes[i], i));
         }
     }
 

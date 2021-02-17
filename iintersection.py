@@ -5,7 +5,6 @@ given traffic scenario.
 
 import argparse
 import math
-import xml.etree.ElementTree as ET
 
 from numpy import arange
 from numpy.random import default_rng
@@ -203,35 +202,8 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--population-size", type=int, dest="population_size")
     args = parser.parse_args()
 
-    # Parse scenario file.
-    tree = ET.parse(args.scenario)
-    scenario = tree.getroot()
-    # There should two children: "nodes" and "edges".
-    nodes = None
-    edges = None
-    for child in scenario:
-        if child.tag == "nodes":
-            nodes = child
-        elif child.tag == "edges":
-            edges = child
-    # Construct node objects.
-    nodes_dict = {}  # Maps node IDs to nodes.
-    for node in nodes:
-        x, y, z = node.attrib["x"], node.attrib["y"], node.attrib["z"]
-        nodes_dict[node.attrib["id"]] = Node(x, y, z)
-    # Construct edge objects.
-    edges_list = []
-    for edge in edges:
-        start_node = nodes_dict[edge.attrib["from"]]
-        end_node = nodes_dict[edge.attrib["to"]]
-        demand = {}
-        for attrib in edge.attrib:
-            if attrib[-7:] == "_demand":
-                vehicle_type = VEHICLETYPES[attrib[:-7]]
-                demand[vehicle_type] = edge.attrib[attrib]
-        edges_list.append(ScenarioEdge(start_node, end_node, demand))
-
-    input_scenario = IntersectionScenario(list(nodes_dict.values()), edges_list)
+    # Generate scenario object from xml file.
+    input_scenario = IntersectionScenario.fromXMLFile(args.scenario)
 
     # Set constants.
     if args.backend:
