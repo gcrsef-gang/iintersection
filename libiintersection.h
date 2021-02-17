@@ -198,8 +198,8 @@ public:
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
 
-    std::string getEdgeXML();
-    std::string getNodeXML();
+    std::string getEdgeXML() const;
+    std::string getNodeXML() const;
 
     std::vector<IntersectionRoute*> routes;
 
@@ -258,7 +258,7 @@ void Intersection::updateMetrics(BACKENDS back)
 }
 
 
-void Intersection::getNodeXML()
+std::string Intersection::getNodeXML() const
 {
     std::vector<IntersectionNode*> nodes;
     for (IntersectionRoute* route : routes)
@@ -269,9 +269,7 @@ void Intersection::getNodeXML()
         }
     }
 
-    std::vector<std::string> xmlLines;
-    xmlLines.push_back("<nodes>\n\t");
-
+    std::string xmlOutput = "<nodes>\n";
     std::stringstream nodeTag;
 
     for (int i = 0; i < nodes.size(); i++)
@@ -286,11 +284,12 @@ void Intersection::getNodeXML()
         nodeTag << "z=\"" << nodeLoc->z() << "\" ";
         nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[nodes[i]->getJunctionType] << "\"/>\n";
 
-        xmlLines.push_back(nodeTag.str());
+        xmlOutput += nodeTag.str();
         nodeTag.clear();
     }
 
-    xmlLines.push_back("</nodes>");
+    xmlOutput += "</nodes>";
+    return xmlOutput;
 }
 
 
