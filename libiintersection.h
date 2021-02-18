@@ -9,7 +9,6 @@
  */
 
 
-
 #define SUMO_LIB
 
 #ifndef LIBIINTERSECTION_H
