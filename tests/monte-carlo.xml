@@ -1,0 +1,27 @@
+<scenario name="Monte Carlo">
+    <nodes>
+        <node id="1" x="-1" y="5" z="0" />
+        <node id="2" x="1" y="5" z="0" />
+        <node id="3" x="-5" y="1" z="0" />
+        <node id="4" x="-5" y="-1" z="0" />
+        <node id="5" x="5" y="1" z="0" />
+        <node id="6" x="5" y="-1" z="0" />
+        <node id="7" x="1" y="-5" z="0" />
+        <node id="8" x="-1" y="-5" z="0" />
+    </nodes>
+
+    <edges>
+        <edge from="1" to="3" truck_demand="50" car_demand="50">
+        <edge from="1" to="6" truck_demand="50" car_demand="50">
+        <edge from="1" to="8" truck_demand="50" car_demand="50">
+        <edge from="5" to="2" truck_demand="50" car_demand="50">
+        <edge from="5" to="3" truck_demand="50" car_demand="50">
+        <edge from="5" to="8" truck_demand="50" car_demand="50">
+        <edge from="7" to="2" truck_demand="50" car_demand="50">
+        <edge from="7" to="3" truck_demand="50" car_demand="50">
+        <edge from="7" to="6" truck_demand="50" car_demand="50">
+        <edge from="4" to="2" truck_demand="50" car_demand="50">
+        <edge from="4" to="6" truck_demand="50" car_demand="50">
+        <edge from="4" to="8" truck_demand="50" car_demand="50">
+    </edges>
+</scenario>
