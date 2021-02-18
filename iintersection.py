@@ -21,8 +21,10 @@ from libiintersection import (
 BACKEND = 0  # SUMO
 MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
+GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
 
 # Initial population paramters.
+NEIGHBORHOOD_TYPE = "S_3"
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
 COORD_STDEV_FACTOR = 0.25
@@ -52,7 +54,7 @@ def generate_inital_population(input_scenario):
     num_nodes = np.array(num_nodes, dtype=np.int32)
 
     intersections = []  # 2D square grid.
-    row_size = math.sqrt(POPULATION_SIZE)
+    row_size = GRID_SIDELEN
     for i in range(POPULATION_SIZE):
 
         # Generate the nodes of the intersection.
@@ -167,13 +169,87 @@ def generate_inital_population(input_scenario):
 
     return intersections
 
+def get_neighborhood(position, grid):
+    """
+    Retrieve the neighborhood of intersections at the given position in the grid. 
+    """
+    neighborhood_intersections = []
 
-def select_parents(solution):
+    # Square _3, or a 3x3 square with the center being the position
+    if NEIGHBORHOOD_TYPE == "S_3":
+        x_positions = [position[0]+x for x in range(-1, 2)]
+        y_positions = [position[1]+y for y in range(-1, 2)]
+        if positions[0] == 0:
+            x_positions[0] = GRID_SIDELEN - 1
+        elif positions[1] == GRID_SIDELEN:
+            x_positions[2] = 0
+        if positions[1] == 0:
+            y_positions[0] = GRID_SIDELEN - 1
+        elif positions[1] == GRID_SIDELEN:
+            y_positions[2] = 0
+        for x_pos in x_positions:
+            for y_pos in y_positions:
+                neighborhood_intersections.append(grid[x_pos][y_pos])
+    return neighborhood_intersections
+
+def select_parents(neighborhood):
     """
     Finds the neighborhood of the given solution and runs binary tournaments decided with pareto
     dominance, and returns the two best results. 
     """
+    neighborhoodlist = neighborhood
+    while len(neighborhood) > 2:
+        intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
+        intersection1safety = intersection1.getMetric(SAFETY)
+        intersection1efficiency = intersection1.getMetric(EFFICIENCY)
+        intersection1emissions = intersection1.getMetric(EMISSIONS)
+        intersection2safety = intersection2.getMetric(SAFETY)
+        intersection2efficiency = intersection2.getMetric(EFFICIENCY)
+        intersection2emissions = intersection2.getMetric(EMISSIONS)
+        counter = []
+        if intersection1safety < intersection2safety:
+            counter.append(1)
+        elif intersection1safety > intersection2safety:
+            counter.append(2)
+        else:
+            counter.append(0)
 
+        if intersection1efficiency < intersection2efficiency:
+            counter.append(1)
+        elif intersection1efficiency > intersection2efficiency:
+            counter.append(2)
+        else:
+            counter.append(0)
+
+        if intersection1emissions < intersection2emissions:
+            counter.append(1)
+        elif intersection1emissions > intersection2emissions:
+            counter.append(2)
+        else:
+            counter.append(0)
+
+        if 1 not in counter:
+            if 2 not in counter:
+                randint = rng.choice([1,2])
+                if randint == 1:
+                    selected = intersection1
+                else:
+                    selected = intersection2
+            else:
+                selected = intersection2
+        elif 2 not in counter:
+            selected = intersection1
+        else:
+            randint = rng.choice([1,2])
+            if randint == 1:
+                selected = intersection1
+            else:
+                selected = intersection2
+        if selected == intersection1:
+            neighborhoodlist.pop(0)
+        else:
+            neighborhoodlist.pop(1)
+    return neighborhoodlist[0], neighborhoodlist[1]
 
 def crossover(parent1, parent2):
     """
@@ -197,7 +273,14 @@ def optimize(input_scenario):
     """
     Estimates the pareto front of optimal intersections for a given traffic scenario.
     """
-
+    grid = generate_inital_population(input_scenario)
+    evaluations_num = 0
+    while evaluations_num < MAX_EVALUATIONS:
+        for i in range(POPULATION_SIZE):
+            pos = (i // GRID_SIDELEND, i % GRID_SIDELEN)
+            neighborhood_intersections = get_neighbors(pos, grid)
+            parents_tuple = select_parents(neighborhood_intersections)
+            
 
 if __name__ == "__main__":
 
