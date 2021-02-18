@@ -60,7 +60,7 @@ const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES
 
 
 // Intersection evaluation function type
-typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(const ::ii::Intersection*);
+typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
 
 
 /**
@@ -82,19 +82,28 @@ public:
 class SumoInterface : public BackendsManager
 {
 public:
+    SumoInterface(const SumoInterface&) = delete;
+    SumoInterface& operator= (const SumoInterface&) = delete;
+
+    static SumoInterface* GetInstance()
+    {
+        static SumoInterface instance;
+        return &instance;
+    }
+
+    void rebuildNet(const Intersection*);
+    void performSim(const std::size_t time);
     void updateIntersectionEmissions(Intersection*);
     void updateIntersectionSafety(Intersection*);
     void updateIntersectionEfficiency(Intersection*);
 
-    void rebuildNet(const Intersection*);
-    void performSim(const std::size_t time);
-    static SumoInterface* getInstance();
-
 private:
+    SumoInterface() {}
     // MSNet* net;
-
-friend class Intersection;
 };
+
+
+// SumoInterface SumoInterface::instance;
 
 
 class Point3d
@@ -238,9 +247,9 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 {
     {
         BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, &SumoInterface::updateIntersectionEfficiency},
-            {METRICS::SAFETY, &SumoInterface::updateIntersectionSafety},
-            {METRICS::EMISSIONS, &SumoInterface::updateIntersectionEmissions}
+            {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
+            {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
+            {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
         }
     }
 };
@@ -318,8 +327,8 @@ void Intersection::simulate(BACKENDS back) const
 {
     if (back == BACKENDS::SUMO)
     {
-        SumoInterface::getInstance()->rebuildNet(this);
-        SumoInterface::getInstance()->performSim(SIMTIME);
+        SumoInterface::GetInstance()->rebuildNet(this);
+        SumoInterface::GetInstance()->performSim(SIMTIME);
     }
 }
 
@@ -330,7 +339,7 @@ void Intersection::updateMetrics(BACKENDS back)
 
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
-        (SumoInterface::getInstance()->*(it->second))(this);
+        (SumoInterface::GetInstance()->*(it->second))(this);
     }
 }
 
