@@ -9,11 +9,10 @@
  */
 
 
-
 #define SUMO_LIB
 
-#ifndef LIBIINTERSECTION.H
-#define LIBIINTERSECTION.H
+#ifndef LIBIINTERSECTION_H
+#define LIBIINTERSECTION_H
 
 #ifdef SUMO_LIB
 // #include <sumo/main.h>
@@ -29,6 +28,7 @@
 
 #include "lib/pugixml/src/pugixml.hpp"
 
+
 /**
  * \brief Entire iintersection namespace, with different backend interfaces
  * Contains input and solution classes, as well as ways to evaluate them
@@ -36,45 +36,74 @@
 namespace ii {
 
 
-// forward class declarations
+// Forward class declarations
 class Intersection;
 class SumoInterface;
+class BackendsManager;
+class IntersectionNode;
 
+
+// Tracking current max node ID
 static unsigned short int CURRENT_UUID_MAX;
-static const std::size_t SIMTIME;
-
-const enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
-const enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
-const enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<VEHICLETYPES, std::string> VEHICLETYPE_NAMES = {{CAR, "car"}, {TRUCK, "truck"}, {IDK, "idk"}};
-const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", CAR}, {"truck", TRUCK}, {"idk", IDK}}; 
-const enum class JUNCTIONTYPE {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
-const std::map<JUNCTIONTYPE, std::string> JUNCTIONTYPE_NAMES = {{JUNCTIONTYPE::PRIORITY, "priority"}, {JUNCTIONTYPE::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPE::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPE::UNREGULATED, "unregulated"}, {JUNCTIONTYPE::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPE::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPE::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPE::ZIPPER, "zipper"}, {JUNCTIONTYPE::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
-
-typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(const ::ii::Intersection*);
 
 
+// Global constants for the evaluation backends
+static const std::size_t SIMTIME = 604800;  // Seconds of simulation time
+enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
+enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
+
+enum class VEHICLETYPES {CAR, TRUCK, IDK};
+const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+
+enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
+const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::ZIPPER, "zipper"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
+
+
+// Intersection evaluation function type
+typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
+
+
+/**
+ * \brief The base backend evaluation class - contains methods for retrieving all metrics
+ * that will be derived for each backend-specific class. Created specifically for a generalized
+ * evaluation function type, stored in the ::ii::Intersection::evaluations map.
+ * 
+ * Currently the parent to only ::ii::SumoInterface
+ */
 class BackendsManager
 {
 public:
-    void updateIntersectionEmissions(const Intersection*);
-    virtual void updateIntersectionSafety(const Intersection*) = 0;
-    virtual void updateIntersectionEfficiency(const Intersection*) = 0;
+    virtual void updateIntersectionEmissions(Intersection*) = 0;
+    virtual void updateIntersectionSafety(Intersection*) = 0;
+    virtual void updateIntersectionEfficiency(Intersection*) = 0;
 };
 
 
 class SumoInterface : public BackendsManager
 {
 public:
+    SumoInterface(const SumoInterface&) = delete;
+    SumoInterface& operator= (const SumoInterface&) = delete;
+
+    static SumoInterface* GetInstance()
+    {
+        static SumoInterface instance;
+        return &instance;
+    }
+
     void rebuildNet(const Intersection*);
     void performSim(const std::size_t time);
-    static SumoInterface* getInstance();
+    void updateIntersectionEmissions(Intersection*);
+    void updateIntersectionSafety(Intersection*);
+    void updateIntersectionEfficiency(Intersection*);
 
 private:
+    SumoInterface() {}
     // MSNet* net;
-
-friend class Intersection;
 };
+
+
+// SumoInterface SumoInterface::instance;
 
 
 class Point3d
@@ -129,11 +158,11 @@ friend class Intersection;
 class IntersectionNode : public Node
 {
 public:
-    IntersectionNode(Point3d loc, JUNCTIONTYPE junctionType) : Node(loc), junctionType(junctionType) {}
-    JUNCTIONTYPE getJunctionType() {return this->junctionType;}
+    IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType) : Node(loc), junctionType(junctionType) {}
+    JUNCTIONTYPES getJunctionType() {return this->junctionType;}
 
 private:
-    JUNCTIONTYPE junctionType;
+    JUNCTIONTYPES junctionType;
 };
 
 
@@ -207,9 +236,8 @@ public:
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
 
-    std::vector<IntersectionRoute*> routes;
-
 private:
+    std::vector<IntersectionRoute*> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
 };
@@ -219,23 +247,22 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 {
     {
         BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, SumoInterface::updateIntersectionEfficiency},
-            {METRICS::SAFETY, SumoInterface::updateIntersectionSafety},
-            {METRICS::EMISSIONS, SumoInterface::updateIntersectionEmissions}
+            {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
+            {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
+            {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
         }
     }
 };
 
+// IntersectionEvalFunc func = SumoInterface::updateIntersectionEfficiency;
 
 class IntersectionScenario
 {
 public:
     IntersectionScenario(std::vector<Node*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
-    
+    IntersectionScenario(std::string xmlFilePath);
     std::vector<Node*> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
-
-    static IntersectionScenario LoadIntersectionScenario(std::string xmlFilePath);
 
 private:
     std::vector<Node*> nodes;
@@ -244,12 +271,11 @@ private:
 
 
 
-
-IntersectionScenario IntersectionScenario::LoadIntersectionScenario(std::string xmlFilePath)
+IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 {
     // Load document.
     pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file("test.xml");
+    pugi::xml_parse_result result = doc.load_file(xmlFilePath.c_str());
     if (!result)
     {
         std::cerr << "Could not parse XML." << std::endl;
@@ -263,8 +289,8 @@ IntersectionScenario IntersectionScenario::LoadIntersectionScenario(std::string 
     std::map<std::string, Node*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        Node node({xmlNode.attribute("x").as_int(), xmlNode.attribute("y").as_int(), xmlNode.attribute("z").as_int()});
-        nodeIDMap.insert(std::pair<std::string, Node*>(xmlNode.attribute("id").value(), &node));
+        Node node({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
+        nodeIDMap[xmlNode.attribute("id").value()] = &node;
         nodes.push_back(&node);
     }
 
@@ -272,20 +298,23 @@ IntersectionScenario IntersectionScenario::LoadIntersectionScenario(std::string 
     pugi::xml_node edgesList = xmlScenario.child("edges");
     for (pugi::xml_node xmlEdge = edgesList.first_child(); xmlEdge; xmlEdge = xmlEdge.next_sibling())
     {
-        Node* s, e;
-        s = nodeIDMap[xmlEdge.attribute("from").value()]
-        e = nodeIDMap[xmlEdge.attribute("to").value()]
+        Node* s, *e;
+        s = nodeIDMap[xmlEdge.attribute("from").value()];
+        e = nodeIDMap[xmlEdge.attribute("to").value()];
+
         std::map<VEHICLETYPES, short int> demand;
 
-        for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute()) {
+        for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute())
+        {
             std::string attrName = attr.name();
             int pos = attrName.find("_demand");
 
             // If attribute contains demand data.
-            if (pos != string::npos) {
-                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES[attrName.substr(0, pos)];
+            if (pos != std::string::npos)
+            {
+                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES.at(attrName.substr(0, pos));
                 short int vehicleDemand = attr.as_int();
-                demand.insert(std::pair<VEHICLETYPES, short int>(vehicleType, vehicleDemand));
+                demand[vehicleType] = vehicleDemand;
             }
         }
 
@@ -298,8 +327,8 @@ void Intersection::simulate(BACKENDS back) const
 {
     if (back == BACKENDS::SUMO)
     {
-        SumoInterface::getInstance()->rebuildNet(this);
-        SumoInterface::getInstance()->performSim(SIMTIME);
+        SumoInterface::GetInstance()->rebuildNet(this);
+        SumoInterface::GetInstance()->performSim(SIMTIME);
     }
 }
 
@@ -310,8 +339,7 @@ void Intersection::updateMetrics(BACKENDS back)
 
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
-        IntersectionEvalFunc func = (it->second);
-        (SumoInterface::getInstance()->*func)(this);
+        (SumoInterface::GetInstance()->*(it->second))(this);
     }
 }
 
@@ -339,7 +367,7 @@ std::string Intersection::getNodeXML() const
         nodeTag << "x=\"" << nodeLoc->x() << "\" ";
         nodeTag << "y=\"" << nodeLoc->y() << "\" ";
         nodeTag << "z=\"" << nodeLoc->z() << "\" ";
-        nodeTag << "type=\"" << JUNCTIONTYPE_NAMES[nodes[i]->getJunctionType()] << "\"/>\n";
+        nodeTag << "type=\"" << JUNCTIONTYPES_NAMES.at(nodes[i]->getJunctionType()) << "\"/>\n";
 
         xmlOutput += nodeTag.str();
         nodeTag.clear();
