@@ -197,59 +197,63 @@ def select_parents(neighborhood):
     Finds the neighborhood of the given solution and runs binary tournaments decided with pareto
     dominance, and returns the two best results. 
     """
-    neighborhoodlist = neighborhood
-    while len(neighborhood) > 2:
-        intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
-        intersection1safety = intersection1.getMetric(SAFETY)
-        intersection1efficiency = intersection1.getMetric(EFFICIENCY)
-        intersection1emissions = intersection1.getMetric(EMISSIONS)
-        intersection2safety = intersection2.getMetric(SAFETY)
-        intersection2efficiency = intersection2.getMetric(EFFICIENCY)
-        intersection2emissions = intersection2.getMetric(EMISSIONS)
-        counter = []
-        if intersection1safety < intersection2safety:
-            counter.append(1)
-        elif intersection1safety > intersection2safety:
-            counter.append(2)
-        else:
-            counter.append(0)
+    halfway = len(neighborhood) // 2
+    neighborhoodlists = [neighborhood[:halfway], neighborhood[halfway:]]
+    parents = []
+    for neighborhoodlist in neighborhoodlists:
+        while len(neighborhoodlist) > 1:
+            intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
+            intersection1safety = intersection1.getMetric(SAFETY)
+            intersection1efficiency = intersection1.getMetric(EFFICIENCY)
+            intersection1emissions = intersection1.getMetric(EMISSIONS)
+            intersection2safety = intersection2.getMetric(SAFETY)
+            intersection2efficiency = intersection2.getMetric(EFFICIENCY)
+            intersection2emissions = intersection2.getMetric(EMISSIONS)
+            counter = []
+            if intersection1safety < intersection2safety:
+                counter.append(1)
+            elif intersection1safety > intersection2safety:
+                counter.append(2)
+            else:
+                counter.append(0)
 
-        if intersection1efficiency < intersection2efficiency:
-            counter.append(1)
-        elif intersection1efficiency > intersection2efficiency:
-            counter.append(2)
-        else:
-            counter.append(0)
+            if intersection1efficiency < intersection2efficiency:
+                counter.append(1)
+            elif intersection1efficiency > intersection2efficiency:
+                counter.append(2)
+            else:
+                counter.append(0)
 
-        if intersection1emissions < intersection2emissions:
-            counter.append(1)
-        elif intersection1emissions > intersection2emissions:
-            counter.append(2)
-        else:
-            counter.append(0)
+            if intersection1emissions < intersection2emissions:
+                counter.append(1)
+            elif intersection1emissions > intersection2emissions:
+                counter.append(2)
+            else:
+                counter.append(0)
 
-        if 1 not in counter:
-            if 2 not in counter:
+            if 1 not in counter:
+                if 2 not in counter:
+                    randint = rng.choice([1,2])
+                    if randint == 1:
+                        selected = intersection1
+                    else:
+                        selected = intersection2
+                else:
+                    selected = intersection2
+            elif 2 not in counter:
+                selected = intersection1
+            else:
                 randint = rng.choice([1,2])
                 if randint == 1:
                     selected = intersection1
                 else:
                     selected = intersection2
+            if selected == intersection1:
+                neighborhoodlist.pop(0)
             else:
-                selected = intersection2
-        elif 2 not in counter:
-            selected = intersection1
-        else:
-            randint = rng.choice([1,2])
-            if randint == 1:
-                selected = intersection1
-            else:
-                selected = intersection2
-        if selected == intersection1:
-            neighborhoodlist.pop(0)
-        else:
-            neighborhoodlist.pop(1)
-    return neighborhoodlist[0], neighborhoodlist[1]
+                neighborhoodlist.pop(1)
+        parents.append(neighborhoodlist[0])
+    return parents[0], parents[1]
 
 def crossover(parent1, parent2):
     """
@@ -280,7 +284,8 @@ def optimize(input_scenario):
             pos = (i // GRID_SIDELEND, i % GRID_SIDELEN)
             neighborhood_intersections = get_neighbors(pos, grid)
             parents_tuple = select_parents(neighborhood_intersections)
-            
+            offspring = crossover(parents_tuple)
+            offspring = mutate(offspring)
 
 if __name__ == "__main__":
 
