@@ -124,21 +124,27 @@ def generate_inital_population(input_scenario):
                 # Create bezier curve using random points inside bounding box of start and end nodes
                 # of the edge.
                 n_bezier_handles = rng.choice(3)
-                start_x, start_y, start_z = route_nodes[-2].getLoc()
-                end_x, end_y, end_z = route_nodes[-1].getLoc()
+                start_coords = route_nodes[-2].getLoc()
+                start_x, start_y, start_z = start_coords
+                end_coords = route_nodes[-1].getLoc()
+                end_x, end_y, end_z = end_coords
                 if n_bezier_handles:
-                    # Create a rectangle between the start and end points and choose random points
-                    # within that rectangle.
-                    m = (start_x - end_x) / (start_y - end_y)
-                    theta = math.atan(m)
-                    perp_m = -1 / m
-                    d1 = math.sqrt(_get_squared_distance((start_x, start_y), (end_x, end_x)))
-                    r1_distances = rng.integers(low=(-0.5 * d1), high=(1.5 * d1), size=n_bezier_handles)
-                    r2_distances = rng.integers(low=(-0.5 * d1), high=(0.5 * d1), size=n_bezier_handles)
-                    for r1, r2 in zip(r1_distances, r2_distances):
-                        x = start_x + r1 * math.cos(theta) - r2 * math.sin(theta)
-                        y = start_y + r1 * math.sin(theta) + r2 * math.cos(theta)
-                        points.append([x, y])
+                    # Choose points from bounding box, expanded by half of the distance between them.
+                    half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
+                    max_x = max(start_x, end_x) + half_distance
+                    min_x = min(start_x, end_x) - half_distance
+                    max_y = max(start_y, end_y) + half_distance
+                    min_y = min(start_y, end_y) - half_distance
+                    max_z = max(start_z, end_z) + half_distance
+                    min_z = min(start_z, end_z) - half_distance
+
+                    points = []
+                    for _ in range(n_bezier_handles):
+                        point = []
+                        point.append(rng.choice(arange(min_x, max_x + 1)))
+                        point.append(rng.choice(arange(min_y, max_y + 1)))
+                        point.append(rng.choice(arange(min_z, max_z + 1)))
+                        points.append(point)
                 else:
                     points = []
                 bezier_curve = PyBezierCurve(route_nodes[-2], route_nodes[-1], points)

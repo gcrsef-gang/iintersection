@@ -1,5 +1,5 @@
 # distutils: language = c++
-# distutils: sources = pugixml/pugixml.cpp
+# distutils: sources = lib/pugixml/src/pugixml.cpp
 
 from libcpp.vector cimport vector
 from libcpp.map cimport map

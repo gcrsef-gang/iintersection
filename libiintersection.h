@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#include "pugixml/pugixml.hpp"
+#include "lib/pugixml/src/pugixml.hpp"
 
 /**
  * \brief Entire iintersection namespace, with different backend interfaces
