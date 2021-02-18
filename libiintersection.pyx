@@ -7,10 +7,12 @@ from libcpp.utility cimport pair
 from libcpp.string import string
 from cython.operator cimport dereference as deref
 
+
 # Defining pointers since Cython's [] syntax doesn't work sometimes
 ctypedef Node* nodepointer
 ctypedef IntersectionRoute* intersectionroutepointer
 ctypedef IntersectionNode* intersectionnodepointer
+
 
 cdef extern from "libiintersection.h" namespace "ii":
     cdef cppclass IntersectionScenario:
@@ -58,6 +60,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         Node(Point3d)
         Point3d* getLoc()
         int getID()
+
     cdef cppclass Point3d:
         Point3d()
         Point3d(short int x, short int y, short int z) except +
@@ -65,19 +68,23 @@ cdef extern from "libiintersection.h" namespace "ii":
         short int x()
         short int y()
         short int z()
+
     cdef cppclass IntersectionNode(Node):
         IntersectionNode()
         IntersectionNode(Point3d loc, JUNCTIONTYPE junctionType) except +
         JUNCTIONTYPE getJunctionType()
+
     cdef cppclass Edge:
         Edge()
         Edge(nodepointer s, nodepointer e) except +
         int getStartNode()
         int getEndNode()
+
     cdef cppclass ScenarioEdge(Edge):
         ScenarioEdge()
         ScenarioEdge(Node* s, Node* e, map[VEHICLETYPES, short int] demand) except +
         map[VEHICLETYPES, short int] getDemand()
+
     cdef cppclass BezierCurve:
         BezierCurve()
         BezierCurve(intersectionnodepointer s, intersectionnodepointer e, vector[Point3d] handles) except +
@@ -85,6 +92,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         int getStartNode()
         int getEndNode()
         vector[Point3d] getHandles()
+
     cdef cppclass IntersectionEdge(Edge):
         IntersectionEdge()
         IntersectionEdge(intersectionnodepointer s, intersectionnodepointer e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) except +
@@ -93,9 +101,10 @@ cdef extern from "libiintersection.h" namespace "ii":
         short int getSpeedLimit()
         short int getPriority()
 
+
 cdef class PyIntersectionScenario:
     cdef IntersectionScenario c_intersectionscenario
-    
+
     def __cinit__(self, pynodes, pyedges):
 
         cdef PyNode node
@@ -123,10 +132,13 @@ cdef class PyIntersectionScenario:
             pyvector.append(PyScenarioEdgeCConstructor(edge))
         return pyvector
 
+
 cdef class PyXMLIntersectionScenario(PyIntersectionScenario):
     def __cinit__(self, xmlfilepath):
         cdef char* cyxmlfilepath = <char*>xmlfilepath
         self.c_intersectionscenario = IntersectionScenario(cyxmlfilepath)
+
+
 cdef class PyIntersection:
     cdef Intersection c_intersection
 
@@ -152,9 +164,8 @@ cdef class PyIntersection:
     def getEdgeXML(self):
         return self.c_intersection.getEdgeXML()\
     
-    @property
-    def routes(self):
-        cdef vector[intersectionroutepointer] routesvector = self.c_intersection.routes
+    def getRoutes(self):
+        cdef vector[intersectionroutepointer] routesvector = self.c_intersection.getRoutes()
         pyvector = []
         for route in routesvector:
             pyvector.append(PyIntersectionRouteConstructor(route))
@@ -215,24 +226,27 @@ cdef class PyIntersectionNode(PyNode):
         print(f"Type of getJunctionType return value: {type(junction)}")
         return junction
 
+
 cdef class PyBezierCurve():
     cdef BezierCurve c_beziercurve
 
     def __cinit__(self, s, e, pyhandles):
-        cdef startnode = s.c_intersectionnode
-        cdef Point3d startloc = Point3d(startnode.getLoc())
-        cdef startjunctiontype = startnode.getJunctionType()
-        cdef IntersectionNode cystartnode = IntersectionNode(startloc, startjunctiontype)
+        cdef intersectionnodepointer start_node_ptr
+        if isinstance(s, PyIntersectionNodePointer):
+            start_node_ptr = s.c_intersectionnodepointer
+        elif isinstance(s, PyIntersectionNode):
+            start_node_ptr = &(s.c_intersectionnode)
 
-        cdef endnode = s.c_intersectionnode
-        cdef Point3d endloc = Point3d(endnode.getLoc())
-        cdef endjunctiontype = endnode.getJunctionType()
-        cdef IntersectionNode cyendnode = IntersectionNode(endloc, endjunctiontype)
+        cdef intersectionnodepointer end_node_ptr
+        if isinstance(e, PyIntersectionNodePointer):
+            end_node_ptr = e.c_intersectionnodepointer
+        elif isinstance(e, PyIntersectionNode):
+            end_node_ptr = &(e.c_intersectionnode)
 
         cdef vector[Point3d] handles
         for tuple_ in pyhandles:
-            handles.push_back(Point3d(tuple_))
-        self.c_beziercurve = BezierCurve(&cystartnode, &cyendnode, handles)
+            handles.push_back(Point3d(tuple_[0], tuple_[1], tuple[2]))
+        self.c_beziercurve = BezierCurve(start_node_ptr, end_node_ptr, handles)
 
     def rasterize(self):
         cdef vector[Point3d] point3dvector = self.c_beziercurve.rasterize()
@@ -256,10 +270,12 @@ cdef class PyBezierCurve():
             pyvector.append(pointtuple)
         return pyvector
 
+
 cdef object PyBezierCurveCConstructor(BezierCurve beziercurve):
     cdef PyBezierCurve pybeziercurve = PyBezierCurve()
     pybeziercurve.c_beziercurve = beziercurve
     return pybeziercurve
+
 
 cdef class PyEdge():
     cdef Edge c_edge 
