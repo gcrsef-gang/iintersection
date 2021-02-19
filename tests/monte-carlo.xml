@@ -11,17 +11,17 @@
     </nodes>
 
     <edges>
-        <edge from="1" to="3" truck_demand="50" car_demand="50">
-        <edge from="1" to="6" truck_demand="50" car_demand="50">
-        <edge from="1" to="8" truck_demand="50" car_demand="50">
-        <edge from="5" to="2" truck_demand="50" car_demand="50">
-        <edge from="5" to="3" truck_demand="50" car_demand="50">
-        <edge from="5" to="8" truck_demand="50" car_demand="50">
-        <edge from="7" to="2" truck_demand="50" car_demand="50">
-        <edge from="7" to="3" truck_demand="50" car_demand="50">
-        <edge from="7" to="6" truck_demand="50" car_demand="50">
-        <edge from="4" to="2" truck_demand="50" car_demand="50">
-        <edge from="4" to="6" truck_demand="50" car_demand="50">
-        <edge from="4" to="8" truck_demand="50" car_demand="50">
+        <edge from="1" to="3" truck_demand="50" car_demand="50" />
+        <edge from="1" to="6" truck_demand="50" car_demand="50" />
+        <edge from="1" to="8" truck_demand="50" car_demand="50" />
+        <edge from="5" to="2" truck_demand="50" car_demand="50" />
+        <edge from="5" to="3" truck_demand="50" car_demand="50" />
+        <edge from="5" to="8" truck_demand="50" car_demand="50" />
+        <edge from="7" to="2" truck_demand="50" car_demand="50" />
+        <edge from="7" to="3" truck_demand="50" car_demand="50" />
+        <edge from="7" to="6" truck_demand="50" car_demand="50" />
+        <edge from="4" to="2" truck_demand="50" car_demand="50" />
+        <edge from="4" to="6" truck_demand="50" car_demand="50" />
+        <edge from="4" to="8" truck_demand="50" car_demand="50" />
     </edges>
 </scenario>

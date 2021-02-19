@@ -41,10 +41,14 @@ class Intersection;
 class SumoInterface;
 class BackendsManager;
 class IntersectionNode;
+class DataManager;
+class Node;
+class Point3d;
+class IntersectionRoute;
 
 
 // Tracking current max node ID
-static unsigned short int CURRENT_UUID_MAX;
+static unsigned short int CURRENT_UUID_MAX = 0;
 
 
 // Global constants for the evaluation backends
@@ -61,6 +65,28 @@ const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES
 
 // Intersection evaluation function type
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
+
+
+class DataManager
+{
+public:
+    DataManager(const DataManager&) = delete;
+    DataManager& operator= (const DataManager&) = delete;
+
+    static DataManager* Get();
+    Node* createNewNode(Point3d loc);
+    void removeNode(Node* node);
+
+private:
+    DataManager() {}
+
+    std::vector<IntersectionRoute> routesData;
+    std::vector<Node> scenarioNodeData;
+    std::vector<IntersectionNode> intersectionNodeData;
+};
+
+
+static DataManager* GLOBALDATA = DataManager::Get();
 
 
 /**
@@ -85,17 +111,17 @@ public:
     SumoInterface(const SumoInterface&) = delete;
     SumoInterface& operator= (const SumoInterface&) = delete;
 
-    static SumoInterface* GetInstance()
+    static SumoInterface* Get()
     {
         static SumoInterface instance;
         return &instance;
     }
 
-    void rebuildNet(const Intersection*);
-    void performSim(const std::size_t time);
-    void updateIntersectionEmissions(Intersection*);
-    void updateIntersectionSafety(Intersection*);
-    void updateIntersectionEfficiency(Intersection*);
+    void rebuildNet(const Intersection*) {};
+    void performSim(const std::size_t time) {};
+    void updateIntersectionEmissions(Intersection*) {};
+    void updateIntersectionSafety(Intersection*) {};
+    void updateIntersectionEfficiency(Intersection*) {};
 
 private:
     SumoInterface() {}
@@ -133,36 +159,51 @@ public:
     std::vector<Point3d> getHandles() const {return this->handles;}
 
 private:
+    void setStartNode(IntersectionNode*);
+    void setEndNode(IntersectionNode*);
     IntersectionNode* s;
     IntersectionNode* e;
     std::vector<Point3d> handles;
+
+friend class IntersectionEdge;
 };
 
 
 class Node
 {
 public:
-    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
-
     Point3d* getLoc() {return &(this->loc);}
-    unsigned short int getID() {return UUID;}
+    unsigned short int getID() {return this->UUID;}
+
+    void removeFromGlobalNodes()
+    {
+        // we can assume that it exists in GLOBAL_NODES, otherwise this method wouldn't be calleable
+        GLOBALDATA->removeNode(this);
+    }
+
+protected:
+    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX; std::cout << "Constructed Node() with id " << this->UUID << std::endl; }
 
 private:
     unsigned short int UUID;
     Point3d loc;
 
-friend class Intersection;
+friend class DataManager;
 };
 
 
 class IntersectionNode : public Node
 {
 public:
-    IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType) : Node(loc), junctionType(junctionType) {}
     JUNCTIONTYPES getJunctionType() {return this->junctionType;}
 
 private:
+    IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
+        : Node(loc), junctionType(junctionType) {}
+
     JUNCTIONTYPES junctionType;
+
+friend class DataManager;
 };
 
 
@@ -188,6 +229,10 @@ public:
     short int getNumLanes() const {return this->numlanes;}
     short int getSpeedLimit() const {return this->speedlimit;}
     short int getPriority() const {return this->priority;}
+    
+    void setStartNode(Node*);
+    void setEndNode(Node*);
+
 
 private:
     BezierCurve shape;
@@ -254,7 +299,6 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
     }
 };
 
-// IntersectionEvalFunc func = SumoInterface::updateIntersectionEfficiency;
 
 class IntersectionScenario
 {
@@ -269,6 +313,40 @@ private:
     std::vector<ScenarioEdge> edges;
 };
 
+
+
+/**
+ * Implementations of class methods, single file
+ * for easy includes and project maintenance
+ */
+
+
+DataManager* DataManager::Get() {
+    static DataManager manager;
+    return &manager;
+}
+
+
+Node* DataManager::createNewNode(Point3d loc) {
+    std::cout << "Data manager constructing new node" << std::endl;
+    std::cout << "Global nodes size: " << scenarioNodeData.size() << std::endl;
+    Node tmp(loc);
+    scenarioNodeData.push_back(tmp);
+
+    for (int i = 0; i < scenarioNodeData.size(); i++) {
+        std::cout << "Global node " << &scenarioNodeData[i] << ", " << scenarioNodeData[i].getID() << std::endl;
+    }
+
+    std::cout << std::endl;
+    // scenarioNodeData.size() is guaranteed to be > 0, so this is OK
+    return &scenarioNodeData[scenarioNodeData.size() - 1];
+}
+
+
+void DataManager::removeNode(Node* node)
+{
+    scenarioNodeData.erase(std::remove(scenarioNodeData.begin(), scenarioNodeData.end(), *node), scenarioNodeData.end());
+}
 
 
 IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
@@ -289,10 +367,17 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     std::map<std::string, Node*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        Node node({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
-        nodeIDMap[xmlNode.attribute("id").value()] = &node;
-        nodes.push_back(&node);
+        Node* node = GLOBALDATA->createNewNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
+        nodeIDMap[xmlNode.attribute("id").value()] = node;
+        this->nodes.push_back(node);
+
+        for (int i = 0; i < nodes.size(); i++) {
+            std::cout << "add node " << nodes[i] << ", " << nodes[i]->getID() << std::endl;
+        }
+
+        std::cout << std::endl;
     }
+    
 
     // Append edges to vector.
     pugi::xml_node edgesList = xmlScenario.child("edges");
@@ -327,8 +412,8 @@ void Intersection::simulate(BACKENDS back) const
 {
     if (back == BACKENDS::SUMO)
     {
-        SumoInterface::GetInstance()->rebuildNet(this);
-        SumoInterface::GetInstance()->performSim(SIMTIME);
+        SumoInterface::Get()->rebuildNet(this);
+        SumoInterface::Get()->performSim(SIMTIME);
     }
 }
 
@@ -339,7 +424,7 @@ void Intersection::updateMetrics(BACKENDS back)
 
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
-        (SumoInterface::GetInstance()->*(it->second))(this);
+        (SumoInterface::Get()->*(it->second))(this);
     }
 }
 
