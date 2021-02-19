@@ -6,13 +6,12 @@ given traffic scenario.
 import argparse
 import math
 
-from numpy import arange
-from numpy.random import default_rng
+import numpy as np
 
 from libiintersection import (
     METRICS, BACKENDS, VEHICLETYPES, JUNCTIONTYPE,
     PyBezierCurve, PyIntersection, PyIntersectionNode, PyIntersectionRoute, PyIntersectionEdge,
-    PyIntersectionScenario, PyXMLIntersectionSenario, PyNode, PyScenarioEdge,
+    PyIntersectionScenario, PyXMLIntersectionScenario, PyNode, PyScenarioEdge,
     PyNodePointer, PyIntersectionNodePointer, PyIntersectionRoutePointer
 )
 
@@ -24,17 +23,23 @@ POPULATION_SIZE = 400
 GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
 
 # Initial population paramters.
-NEIGHBORHOOD_TYPE = "S_3"
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
 COORD_STDEV_FACTOR = 0.25
-END_PROB = 0.5
+END_ROUTE_PROB = 0.5
 MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
 MAX_PRIORITY = 10
 
+# Parent selection parameters.
+NEIGHBORHOOD_TYPE = "S_3"
+
+# Crossover parameters.
+EDGE_REPLACEMENT_PROB = 0.1
+ZIPPER_PROB = 0.5
+
 # Random number generator.
-rng = default_rng(42069)
+rng = np.random.default_rng(42069)
 
 
 def _get_squared_distance(p1, p2):
@@ -42,6 +47,20 @@ def _get_squared_distance(p1, p2):
     for coord1, coord2 in zip(p1, p2):
         squared_distance += (coord1 - coord2) ** 2
     return squared_distance
+
+
+def _get_route_from_scenario_edge(intersection, scenario_edge):
+    """
+    Returns a route from an intersection that corresponds to an edge in a scenario.
+    """
+    corresponding_routes = []
+    for route in intersection.getRoutes():
+        route_nodes = route.getNodeList()
+        same_start_nodes = route_nodes[0].getID() == scenario_edge.getStartNode().getID()
+        # Second equality test not run if same_start_nodes is false.
+        if same_start_nodes and route_nodes[1].getID() == scenario_edge.getEndNode().getID():
+            corresponding_routes.append(route)
+    return corresponding_routes[rng.choice(len(corresponding_routes))]
 
 
 def generate_inital_population(input_scenario):
@@ -92,14 +111,14 @@ def generate_inital_population(input_scenario):
             end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [PyIntersectionNode(start_node)]
+            route_nodes = [PyIntersectionNode(start_node.getLoc(), JUNCTIONTYPE["priority"])]
             route_edges = []
             while True:
                 exit_ = False
 
                 # 50/50 chance of connecting the previous node to the end node of the route.
-                if rng.choice(2, p=[END_PROB, 1 - END_PROB]):
-                    route_nodes.append(PyIntersectionNode(end_node))
+                if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
+                    route_nodes.append(PyIntersectionNode(end_node.getLoc(), JUNCTIONTYPE["priority"]))
                     exit_ = True
                 elif len(unchosen_nodes) > 0:
                     # Choose a random node with a probability proportional to its distance from the
@@ -116,7 +135,7 @@ def generate_inital_population(input_scenario):
                     unchosen_nodes.remove(next_node_index)
                 else:
                     # All the nodes of the intersection are in this route.
-                    route_nodes.append(PyIntersectionNode(end_node))
+                    route_nodes.append(PyIntersectionNode(end_node.getLoc(), JUNCTIONTYPE["priority"]))
                     exit_ = True
 
                 # Generate an edge between the two most recently added nodes in the route.
@@ -141,17 +160,17 @@ def generate_inital_population(input_scenario):
                     points = []
                     for _ in range(n_bezier_handles):
                         point = []
-                        point.append(rng.choice(arange(min_x, max_x + 1)))
-                        point.append(rng.choice(arange(min_y, max_y + 1)))
-                        point.append(rng.choice(arange(min_z, max_z + 1)))
+                        point.append(rng.choice(np.arange(min_x, max_x + 1)))
+                        point.append(rng.choice(np.arange(min_y, max_y + 1)))
+                        point.append(rng.choice(np.arange(min_z, max_z + 1)))
                         points.append(point)
                 else:
                     points = []
                 bezier_curve = PyBezierCurve(route_nodes[-2], route_nodes[-1], points)
 
                 # Create edge with random priority, speed limit, and number of lanes.
-                priority = rng.choice(arange(1, MAX_PRIORITY + 1))
-                num_lanes = rng.choice(arange(1, MAX_LANES + 1))
+                priority = rng.choice(np.arange(1, MAX_PRIORITY + 1))
+                num_lanes = rng.choice(np.arange(1, MAX_LANES + 1))
                 speed_limit = rng.random() * MAX_SPEED_LIMIT
                 edge = PyIntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
                                         speed_limit, priority)
@@ -168,6 +187,7 @@ def generate_inital_population(input_scenario):
         intersections[-1].append(PyIntersection(intersection_routes))
 
     return intersections
+
 
 def get_neighborhood(position, grid):
     """
@@ -191,6 +211,7 @@ def get_neighborhood(position, grid):
             for y_pos in y_positions:
                 neighborhood_intersections.append(grid[x_pos][y_pos])
     return neighborhood_intersections
+
 
 def select_parents(neighborhood):
     """
@@ -255,10 +276,87 @@ def select_parents(neighborhood):
         parents.append(neighborhoodlist[0])
     return parents[0], parents[1]
 
-def crossover(parent1, parent2):
+
+def crossover(parents, input_scenario):
     """
     Crosses over two solutions and returns the offspring.
     """
+    all_edges = []
+    for parent in parents:
+        for route in parent.getRoutes():
+            for edge in route.getEdgesList():
+                all_edges.append(edge)
+
+    child_routes = []
+    for scenario_edge in input_scenario.getEdges():
+        # Choose a random route from either parent that corresponds to this scenario edge.
+        parent_route = _get_route_from_scenario_edge(parents[rng.choice(2)], scenario_edge)
+
+        child_route_edges = []
+        for edge in parent_route.getEdgesList():
+            # Replace edges in the route with other ones randomly.
+            if rng.random() < EDGE_REPLACEMENT_PROB:
+                repl_edge = rng.choice([e for e in all_edges if e != edge])
+                repl_start_coords = repl_edge.getStartNode().getLoc()
+                rs_x, rs_y, rs_z = repl_start_coords
+                repl_end_coords = repl_edge.getEndNode().getLoc()
+                re_x, re_y, re_z = repl_end_coords
+                parent_start_coords = edge.getStartNode().get()
+                ps_x, ps_y, ps_z = parent_start_coords
+                parent_end_coords = edge.getEndNode()
+                pe_x, pe_y, pe_z = parent_end_coords()
+
+                new_points = [repl_start_coords] + repl_edge.getShape().getHandles() + [repl_end_coords]
+
+                # Translate to origin.
+                for point in new_points:
+                    for dim in range(3):
+                        point[dim] -= repl_start_coords[dim]
+
+                # Rotate around origin.
+                # Z-axis rotation.
+                rotation_angle = (math.atan((ps_y - pe_y) / (ps_x - pe_x))   # Parent angle.
+                               -  math.atan((rs_y - re_y) / (rs_x - re_x)))  # Replacement angle.
+                for point in new_points:
+                    point[0] = point[0] * math.cos(rotation_angle) - point[1] * math.sin(rotation_angle)
+                    point[1] = point[0] * math.sin(rotation_angle) - point[1] * math.cos(rotation_angle)
+                # Y-axis rotation.
+                rotation_angle = (math.atan((ps_z - pe_z) / (ps_x - pe_x))
+                                - math.atan((rs_z - re_z) / (rs_x - re_x)))
+                for point in new_points:
+                    point[0] = point[0] * math.cos(rotation_angle) - point[2] * math.sin(rotation_angle)
+                    point[2] = point[0] * math.sin(rotation_angle) - point[2] * math.cos(rotation_angle)
+
+                # Scale.
+                repl_length = math.sqrt(_get_squared_distance(repl_start_coords, repl_end_coords))
+                parent_length = math.sqrt(_get_squared_distance(parent_start_coords, parent_end_coords))
+                scale_factor = parent_length / repl_length
+                for point in new_points:
+                    for dim in range(3):
+                        point[dim] *= scale_factor
+
+                # Translate from origin.
+                for point in new_points:
+                    for dim in range(3):
+                        point[dim] += parent_start_coords[dim]
+
+                start_node = edge.getStartNode()
+                end_node = edge.getEndNode()
+                bezier_curve = PyBezierCurve(start_node, end_node, new_points[1:-1])
+                new_edge = PyIntersectionEdge(start_node, end_node, bezier_curve,
+                                              repl_edge.getNumLanes(), repl_edge.getSpeedLimit(),
+                                              repl_edge.getPriority())
+                child_route_edges.append(new_edge)
+            else:
+                child_route_edges.append(edge)
+
+        child_route_nodes = [child_route_edges[0].getStartNode()]
+        for edge in child_route_edges:
+            child_route_nodes.append(edge.getEndNode())
+
+        child_routes.append(PyIntersectionRoute(child_route_nodes, child_route_edges))
+
+    return PyIntersection(child_routes) 
 
 
 def mutate(solution):
@@ -281,8 +379,8 @@ def optimize(input_scenario):
     evaluations_num = 0
     while evaluations_num < MAX_EVALUATIONS:
         for i in range(POPULATION_SIZE):
-            pos = (i // GRID_SIDELEND, i % GRID_SIDELEN)
-            neighborhood_intersections = get_neighbors(pos, grid)
+            pos = (i // GRID_SIDELEN, i % GRID_SIDELEN)
+            neighborhood_intersections = get_neighborhood(pos, grid)
             parents_tuple = select_parents(neighborhood_intersections)
             offspring = crossover(parents_tuple)
             offspring = mutate(offspring)
