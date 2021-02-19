@@ -131,6 +131,7 @@ public:
     IntersectionNode* getStartNode() const {return this->s;}
     IntersectionNode* getEndNode() const {return this->e;}
     std::vector<Point3d> getHandles() const {return this->handles;}
+    void updateHandles(std::vector<Point3d> handles) {handles = handles}
 
 private:
     IntersectionNode* s;
@@ -188,6 +189,10 @@ public:
     short int getNumLanes() const {return this->numlanes;}
     short int getSpeedLimit() const {return this->speedlimit;}
     short int getPriority() const {return this->priority;}
+    void updateHandles(std::vector<Point3d> handles) {shape.updateHandles(handles);}
+    void setNumLanes(short int numLanes) {numlanes = numLanes;}
+    void setSpeedLimit(short int speedLimit) {speedlimit = speedLimit;}
+    void setPriority(short int priority) {priority = priority;}
 
 private:
     BezierCurve shape;

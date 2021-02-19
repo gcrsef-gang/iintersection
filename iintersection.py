@@ -32,6 +32,11 @@ END_PROB = 0.5
 MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
 MAX_PRIORITY = 10
+POSITION_MUTATION_FACTOR = 0.05
+MUTATION_CHANCE = 0.1
+
+# Changed by the bounding box of the inital input scenario
+POSITION_MUTATION_CUBE_LENGTH = 0
 
 # Random number generator.
 rng = default_rng(42069)
@@ -55,16 +60,19 @@ def generate_inital_population(input_scenario):
 
     intersections = []  # 2D square grid.
     row_size = GRID_SIDELEN
+
+    # Generate the bounding box of the intersection.
+    input_nodes_coords = [node.getLoc() for node in input_nodes]
+    input_nodes_max_x = max([loc[0] for loc in input_nodes_coords])
+    input_nodes_max_y = max([loc[1] for loc in input_nodes_coords])
+    input_nodes_max_z = max([loc[2] for loc in input_nodes_coords])
+    input_nodes_min_x = min([loc[0] for loc in input_nodes_coords])
+    input_nodes_min_y = min([loc[1] for loc in input_nodes_coords])
+    input_nodes_min_z = min([loc[2] for loc in input_nodes_coords])
+    POSITION_MUTATION_CUBE_LENGTH = math.sqrt((input_nodes_max_x-input_nodes_min_x)* \
+            (input_nodes_max_y-input_nodes_min_y)) * POSITION_MUTATION_FACTOR
     for i in range(POPULATION_SIZE):
 
-        # Generate the nodes of the intersection.
-        input_nodes_coords = [node.getLoc() for node in input_nodes]
-        input_nodes_max_x = max([loc[0] for loc in input_nodes_coords])
-        input_nodes_max_y = max([loc[1] for loc in input_nodes_coords])
-        input_nodes_max_z = max([loc[2] for loc in input_nodes_coords])
-        input_nodes_min_x = min([loc[0] for loc in input_nodes_coords])
-        input_nodes_min_y = min([loc[1] for loc in input_nodes_coords])
-        input_nodes_min_z = min([loc[2] for loc in input_nodes_coords])
         # Choose points on a normal distribution scaled according to the locations of the nodes in
         # the input scenario.
         node_x_coords = rng.normal(loc=(input_nodes_max_x + input_nodes_min_x) / 2,
@@ -198,7 +206,8 @@ def select_parents(neighborhood):
     dominance, and returns the two best results. 
     """
     halfway = len(neighborhood) // 2
-    neighborhoodlists = [neighborhood[:halfway], neighborhood[halfway:]]
+    shuffled_neigborhood = rng.shuffle(neighborhood)
+    neighborhoodlists = [shuffled_neighborhood[:halfway], shuffled_neighborhood[halfway:]]
     parents = []
     for neighborhoodlist in neighborhoodlists:
         while len(neighborhoodlist) > 1:
@@ -265,8 +274,72 @@ def mutate(solution):
     """
     Mutates the given solution. 
     """
+    for route in solution.getRoutes():
+        nodes = route.getNodeList()[1:-1]
+        changed_node_ids = {}
+        for node in nodes:
+            if rng.random() < MUTATION_CHANCE:
+                attribute = rng.choice([1, 2])
+                if attribute == 1:
+                    new_junction_type = rng.choice(list(JUNCTIONTYPE.values()))
+                    current_loc = node.getLoc()
+                    new_node = IntersectionNode(current_loc, new_junction_type)
+                if attribute == 2:
+                    current_loc = node.getLoc()
+                    new_loc = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in current_loc]
+                    current_junction_type = node.getJunctionType()
+                    new_node = IntersectionNode(new_loc, current_junction_type)
+                changed_nodes[node.getID()] = new_node
+        for edge in routes.getEdgeList():
+            changed_ids = list(changed_node_ids.keys())
+            start_node_id = edge.getStartNode().getID()
+            end_node_id = edge.getEndNode().getID()
+            if start_node_id in changed_ids:
+                edge.setStartNode(changed_node_ids[start_node_id])
+            if end_node_id in changed_ids:
+                edge.setEndNode(changed_node_ids[end_node_id])
+            handles = edge.getShape().getHandles()
+            modified_handles = []
+            for handle in handles:
+                if rng.random() < MUTATION_CHANCE:
+                    new_handle = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in handle]
+                    modified_handles.append(new_handle)
+                else:
+                    modified_handles.append(handle)
+            edge.updateHandles(modified_handles)
+            
+            if rng.random() < MUTATION_CHANCE:
+                current_speed_limit = edge.getSpeedLimit()
+                if current_speed_limit == 1:
+                    edge.setSpeedLimit(2)
+                else:
+                    up_or_down = rng.choice([1,2])
+                    if up_or_down == 1:
+                        edge.setSpeedLimit(current_speed_limit-1)
+                    if up_or_down == 2:
+                        edge.setSpeedLimit(current_speed_limit+1)
 
+            if rng.random() < MUTATION_CHANCE:
+                current_lane_num = edge.getNumLanes()
+                if current_lane_num == 1:
+                    edge.setNumLanes(2)
+                else:
+                    up_or_down = rng.choice([1,2])
+                    if up_or_down == 1:
+                        edge.setNumLanes(current_lane_num-1)
+                    if up_or_down == 2:
+                        edge.setNumLanes(current_lane_num+1)
 
+            if rng.random() < MUTATION_CHANCE:
+                current_priority = edge.getSpeedLimit()
+                if current_priority == 1:
+                    edge.setPriority(2)
+                else:
+                    up_or_down = rng.choice([1,2])
+                    if up_or_down == 1:
+                        edge.setPriority(current_priority-1)
+                    if up_or_down == 2:
+                        edge.setPriority(current_priority+1)
 def evaluate(solution):
     """
     Evaluates the given solution.
@@ -298,7 +371,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Generate scenario object from xml file.
-    input_scenario = PyXMLIntersectionScenario(args.scenario)
+    input_scenario = PyIntersectionScenario.fromXML(args.scenario)
 
     # Set constants.
     if args.backend:
