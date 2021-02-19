@@ -41,13 +41,23 @@ cdef extern from "libiintersection.h" namespace "ii":
         SUMO,
         VISSIM,
         CITYFLOW
-    cdef enum JUNCTIONTYPE:
-        TRAFFICLIGHT,
-        WHATEVER
+    cdef enum JUNCTIONTYPES:
+        PRIORITY,
+        TRAFFIC_LIGHT,
+        RIGHT_BEFORE_LEFT,
+        UNREGULATED,
+        PRIORITY_STOP,
+        TRAFFIC_LIGHT_UNREGULATED,
+        ALLWAY_STOP,
+        ZIPPER,
+        TRAFFIC_LIGHT_RIGHT_ON_RED
     cdef enum VEHICLETYPES:
         CAR,
         TRUCK,
         IDK
+
+    cdef map_[JUNCTIONTYPES, string] JUNCTIONTYPES_NAMES
+    cdef map_[string, VEHICLETYPES] VEHICLETYPES_INDICES
 
     cdef cppclass IntersectionRoute:
         IntersectionRoute()
@@ -71,8 +81,8 @@ cdef extern from "libiintersection.h" namespace "ii":
 
     cdef cppclass IntersectionNode(Node):
         IntersectionNode()
-        IntersectionNode(Point3d loc, JUNCTIONTYPE junctionType) except +
-        JUNCTIONTYPE getJunctionType()
+        IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType) except +
+        JUNCTIONTYPES getJunctionType()
 
     cdef cppclass Edge:
         Edge()
@@ -82,7 +92,7 @@ cdef extern from "libiintersection.h" namespace "ii":
 
     cdef cppclass ScenarioEdge(Edge):
         ScenarioEdge()
-        ScenarioEdge(Node* s, Node* e, map[VEHICLETYPES, short int] demand) except +
+        ScenarioEdge(Node* s, Node* e, map_[VEHICLETYPES, short int] demand) except +
         map_[VEHICLETYPES, short int] getDemand()
 
     cdef cppclass BezierCurve:
@@ -100,6 +110,21 @@ cdef extern from "libiintersection.h" namespace "ii":
         short int getNumLanes()
         short int getSpeedLimit()
         short int getPriority()
+
+
+PY_METRICS = {"SAFETY": 0, "EMISSIONS": 1, "EFFICIENCY": 2}
+PY_BACKENDS = {"SUMO": 0, "VISSIM": 1, "CITYFLOW": 2}
+# Setting these by iterating over C++ maps so that they don't have to be changed in both C++ and cython.
+PY_VEHICLETYPES = {}
+cdef map_[string, VEHICLETYPES].iterator vehicle_it = VEHICLETYPES_INDICES.begin()
+while vehicle_it != VEHICLETYPES_INDICES.end():
+    PY_VEHCILETYPES[<str>(deref(vehicle_it).first)] = <int>(deref(vehicle_it).second)
+    postincrement(vehicle_it)
+PY_JUNCTIONTYPES = {}
+cdef map_[JUNCTIONTYPES, string].iterator junction_it = JUNCTIONTYPES_NAMES.begin()
+while junction_it != JUNCTIONTYPES_NAMES.end():
+    PY_JUNCTIONTYPES[<str>(deref(junction_it)).second] = <int>(deref(junction_it).first)
+    postincrement(junction_it)
 
 
 cdef class PyIntersectionScenario:
@@ -260,7 +285,7 @@ cdef class PyIntersectionNode(PyNode):
     cdef IntersectionNode c_intersectionnode
 
     def __cinit__(self, tuple coords, int junctiontype):
-        self.c_intersectionnode = IntersectionNode(Point3d(*coords), <JUNCTIONTYPE>junctiontype)
+        self.c_intersectionnode = IntersectionNode(Point3d(*coords), <JUNCTIONTYPES>junctiontype)
 
     def getJunctionType(self):
         return <int>self.c_intersectionnode.getJunctionType()

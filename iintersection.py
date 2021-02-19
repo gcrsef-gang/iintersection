@@ -9,15 +9,17 @@ import math
 import numpy as np
 
 from libiintersection import (
-    METRICS, BACKENDS, VEHICLETYPES, JUNCTIONTYPE,
-    PyBezierCurve, PyIntersection, PyIntersectionNode, PyIntersectionRoute, PyIntersectionEdge,
-    PyIntersectionScenario, PyXMLIntersectionScenario, PyNode, PyScenarioEdge,
-    PyNodePointer, PyIntersectionNodePointer, PyIntersectionRoutePointer
+    PY_METRICS as METRICS, PY_BACKENDS as BACKENDS, PY_JUNCTIONTYPES as JUNCTIONTYPES,
+    PY_VEHICLETYPES as VEHICLETYPES,
+    PyBezierCurve as BezierCurve, PyIntersection as Intersection,
+    PyIntersectionNode as IntersectionNode, PyIntersectionRoute as IntersectionRoute, 
+    PyIntersectionEdge as IntersectionEdge, PyIntersectionScenario as IntersectionScenario, 
+    PyNode as Node, PyScenarioEdge as ScenarioEdge
 )
 
 
 # Default values; can be changed by command-line args.
-BACKEND = 0  # SUMO
+BACKEND = BACKENDS["SUMO"]
 MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
 GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
@@ -43,6 +45,9 @@ rng = np.random.default_rng(42069)
 
 
 def _get_squared_distance(p1, p2):
+    """
+    Returns the squared distance between two points.
+    """
     squared_distance = 0
     for coord1, coord2 in zip(p1, p2):
         squared_distance += (coord1 - coord2) ** 2
@@ -98,9 +103,9 @@ def generate_inital_population(input_scenario):
         node_x_coords = np.array(node_x_coords, dtype=np.int32)
         node_y_coords = np.array(node_y_coords, dtype=np.int32)
         node_z_coords = np.array(node_z_coords, dtype=np.int32)
-        node_types = rng.integers(low=0, high=len(JUNCTIONTYPE), size=num_nodes[i])
+        node_types = rng.integers(low=0, high=len(JUNCTIONTYPES), size=num_nodes[i])
         intersection_nodes = [
-            PyIntersectionNode(x, y, z, node_type) for x, y, z, node_type
+            IntersectionNode(x, y, z, node_type) for x, y, z, node_type
             in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
         ]
 
@@ -111,14 +116,14 @@ def generate_inital_population(input_scenario):
             end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [PyIntersectionNode(start_node.getLoc(), JUNCTIONTYPE["priority"])]
+            route_nodes = [IntersectionNode(end_node)]
             route_edges = []
             while True:
                 exit_ = False
 
                 # 50/50 chance of connecting the previous node to the end node of the route.
                 if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
-                    route_nodes.append(PyIntersectionNode(end_node.getLoc(), JUNCTIONTYPE["priority"]))
+                    route_nodes.append(IntersectionNode(end_node))
                     exit_ = True
                 elif len(unchosen_nodes) > 0:
                     # Choose a random node with a probability proportional to its distance from the
@@ -135,7 +140,7 @@ def generate_inital_population(input_scenario):
                     unchosen_nodes.remove(next_node_index)
                 else:
                     # All the nodes of the intersection are in this route.
-                    route_nodes.append(PyIntersectionNode(end_node.getLoc(), JUNCTIONTYPE["priority"]))
+                    route_nodes.append(IntersectionNode(end_node))
                     exit_ = True
 
                 # Generate an edge between the two most recently added nodes in the route.
@@ -166,25 +171,25 @@ def generate_inital_population(input_scenario):
                         points.append(point)
                 else:
                     points = []
-                bezier_curve = PyBezierCurve(route_nodes[-2], route_nodes[-1], points)
+                bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
 
                 # Create edge with random priority, speed limit, and number of lanes.
                 priority = rng.choice(np.arange(1, MAX_PRIORITY + 1))
                 num_lanes = rng.choice(np.arange(1, MAX_LANES + 1))
                 speed_limit = rng.random() * MAX_SPEED_LIMIT
-                edge = PyIntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
+                edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
                                         speed_limit, priority)
                 route_edges.append(edge)
 
                 if exit_:
                     break
             
-            intersection_routes.append(PyIntersectionRoute(route_nodes, route_edges))
+            intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
 
         # Create a new row of intersections.
         if i % row_size == 0:
             intersections.append([])
-        intersections[-1].append(PyIntersection(intersection_routes))
+        intersections[-1].append(Intersection(intersection_routes))
 
     return intersections
 
@@ -342,10 +347,10 @@ def crossover(parents, input_scenario):
 
                 start_node = edge.getStartNode()
                 end_node = edge.getEndNode()
-                bezier_curve = PyBezierCurve(start_node, end_node, new_points[1:-1])
-                new_edge = PyIntersectionEdge(start_node, end_node, bezier_curve,
-                                              repl_edge.getNumLanes(), repl_edge.getSpeedLimit(),
-                                              repl_edge.getPriority())
+                bezier_curve = BezierCurve(start_node, end_node, new_points[1:-1])
+                new_edge = IntersectionEdge(start_node, end_node, bezier_curve,
+                                            repl_edge.getNumLanes(), repl_edge.getSpeedLimit(),
+                                            repl_edge.getPriority())
                 child_route_edges.append(new_edge)
             else:
                 child_route_edges.append(edge)
@@ -354,9 +359,9 @@ def crossover(parents, input_scenario):
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
 
-        child_routes.append(PyIntersectionRoute(child_route_nodes, child_route_edges))
+        child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
-    return PyIntersection(child_routes) 
+    return Intersection(child_routes) 
 
 
 def mutate(solution):
@@ -396,7 +401,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Generate scenario object from xml file.
-    input_scenario = PyXMLIntersectionScenario(args.scenario)
+    input_scenario = IntersectionScenario.fromXML(args.scenario)
 
     # Set constants.
     if args.backend:
