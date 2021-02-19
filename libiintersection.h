@@ -237,6 +237,7 @@ public:
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+    IntersectionRoute* getRoutes() const;
 
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
@@ -245,6 +246,7 @@ private:
     std::vector<IntersectionRoute*> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
+    std::vector<IntersectionRoute*> routes;
 };
 
 
