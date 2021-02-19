@@ -45,8 +45,19 @@ rng = np.random.default_rng(42069)
 
 
 def _get_squared_distance(p1, p2):
-    """
-    Returns the squared distance between two points.
+    """Returns the squared Euclidean distance between two points.
+
+    Parameters
+    ----------
+    p1: list or tuple of int or float
+        A point.
+    p2: list or tuple of int or float
+        A point with the same number of dimensions as `p1`.
+
+    Returns
+    -------
+    int or float
+        The Euclidean distance between the points.
     """
     squared_distance = 0
     for coord1, coord2 in zip(p1, p2):
@@ -55,8 +66,19 @@ def _get_squared_distance(p1, p2):
 
 
 def _get_route_from_scenario_edge(intersection, scenario_edge):
-    """
-    Returns a route from an intersection that corresponds to an edge in a scenario.
+    """Returns a route from an intersection that corresponds to an edge in a scenario.
+
+    Parameters
+    ----------
+    intersection: Intersection
+        An intersection.
+    scenario_edge: ScenarioEdge
+        A scenario edge that corresponds to one of the routes in Intersection.
+
+    Returns
+    -------
+    IntersectionRoute
+        The route from `intersection` that corresponds to `scenario_edge`.
     """
     corresponding_routes = []
     for route in intersection.getRoutes():
@@ -69,8 +91,17 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
 
 
 def generate_inital_population(input_scenario):
-    """
-    Generates the initial grid of solutions.
+    """Generates the initial grid of solutions.
+
+    Parameters
+    ----------
+    input_scenario: IntersectionScenario
+        An input scenario on which is based the generation of intersections.
+
+    Returns
+    -------
+    list of list of Intersection
+        The grid that makes up the starting population of solutions.
     """
     input_nodes = input_scenario.getNodes()
     # Number of nodes for each intersection (excluding input nodes).
@@ -195,8 +226,19 @@ def generate_inital_population(input_scenario):
 
 
 def get_neighborhood(position, grid):
-    """
-    Retrieve the neighborhood of intersections at the given position in the grid. 
+    """Retrieve the neighborhood of intersections at the given position in the grid.
+
+    Parameters
+    ----------
+    position: list or tuple of int
+        A 2-d point that is the position of an individual in the grid.
+    grid: list of list of Intersection
+        The grid representing the population of intersections.
+
+    Returns
+    -------
+    list of Intersection
+        The intersections in the neighborhood of `position`.
     """
     neighborhood_intersections = []
 
@@ -204,13 +246,13 @@ def get_neighborhood(position, grid):
     if NEIGHBORHOOD_TYPE == "S_3":
         x_positions = [position[0]+x for x in range(-1, 2)]
         y_positions = [position[1]+y for y in range(-1, 2)]
-        if positions[0] == 0:
+        if position[0] == 0:
             x_positions[0] = GRID_SIDELEN - 1
-        elif positions[1] == GRID_SIDELEN:
+        elif position[1] == GRID_SIDELEN:
             x_positions[2] = 0
-        if positions[1] == 0:
+        if position[1] == 0:
             y_positions[0] = GRID_SIDELEN - 1
-        elif positions[1] == GRID_SIDELEN:
+        elif position[1] == GRID_SIDELEN:
             y_positions[2] = 0
         for x_pos in x_positions:
             for y_pos in y_positions:
@@ -219,9 +261,20 @@ def get_neighborhood(position, grid):
 
 
 def select_parents(neighborhood):
-    """
-    Finds the neighborhood of the given solution and runs binary tournaments decided with pareto
-    dominance, and returns the two best results. 
+    """Selects the two best individuals from a neighborhood.
+
+    Runs a binary tournament using Pareto dominance. If one competitor is not dominant over the
+    other, a random choice is made.
+
+    Parameters
+    ----------
+    neighborhood: list of Intersection
+        A set of individuals.
+
+    Returns
+    -------
+    tuple of Intersection
+        The two winners of the binary tournament.
     """
     halfway = len(neighborhood) // 2
     neighborhoodlists = [neighborhood[:halfway], neighborhood[halfway:]]
@@ -229,12 +282,12 @@ def select_parents(neighborhood):
     for neighborhoodlist in neighborhoodlists:
         while len(neighborhoodlist) > 1:
             intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
-            intersection1safety = intersection1.getMetric(SAFETY)
-            intersection1efficiency = intersection1.getMetric(EFFICIENCY)
-            intersection1emissions = intersection1.getMetric(EMISSIONS)
-            intersection2safety = intersection2.getMetric(SAFETY)
-            intersection2efficiency = intersection2.getMetric(EFFICIENCY)
-            intersection2emissions = intersection2.getMetric(EMISSIONS)
+            intersection1safety = intersection1.getMetric(METRICS["SAFETY"])
+            intersection1efficiency = intersection1.getMetric(METRICS["EFFICIENCY"])
+            intersection1emissions = intersection1.getMetric(METRICS["EMISSIONS"])
+            intersection2safety = intersection2.getMetric(METRICS["SAFETY"])
+            intersection2efficiency = intersection2.getMetric(METRICS["EFFICIENCY"])
+            intersection2emissions = intersection2.getMetric(METRICS["EMISSIONS"])
             counter = []
             if intersection1safety < intersection2safety:
                 counter.append(1)
@@ -283,8 +336,22 @@ def select_parents(neighborhood):
 
 
 def crossover(parents, input_scenario):
-    """
-    Crosses over two solutions and returns the offspring.
+    """Crosses over two solutions and returns the offspring.
+
+    For each edge in the input scenario, a route is chosen from one of the parents. Random edges
+    from this route are replaced with random edges from any route in either of the two parents.
+
+    Parameters
+    ----------
+    parents: tuple of Intersection
+        Two individuals to breed.
+    input_scenario: IntersectionScenario
+        The input to the genetic algorithm.
+
+    Returns
+    -------
+    Intersection
+        The result of crossing over the two parents.
     """
     all_edges = []
     for parent in parents:
@@ -365,20 +432,45 @@ def crossover(parents, input_scenario):
 
 
 def mutate(solution):
-    """
-    Mutates the given solution. 
+    """Mutates the given solution. 
+
+    Mutates bezier handles, node (junction) types, node locations, numbers of lanes, speed limits, 
+    and edge priorities.
+
+    Parameters
+    ----------
+    solution: Intersection
+        An intersection. Edited in-place.
     """
 
 
 def evaluate(solution):
-    """
-    Evaluates the given solution.
+    """Evaluates the given solution.
+
+    Parameters
+    ----------
+    solution: Intersection
+        An intersection.
+
+    Returns
+    -------
+    tuple of float
+        The safety, emmissions, and efficiency values of the intersection, in that order.
     """
 
 
 def optimize(input_scenario):
-    """
-    Estimates the pareto front of optimal intersections for a given traffic scenario.
+    """Estimates the pareto front of optimal intersections for a given traffic scenario.
+
+    Parameters
+    ----------
+    input_scenario: IntersectionScenario
+        A traffic scenario which can be handled by an intersection or interchange.
+
+    Returns
+    -------
+    list of Intersection
+        An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
     grid = generate_inital_population(input_scenario)
     evaluations_num = 0
@@ -389,6 +481,7 @@ def optimize(input_scenario):
             parents_tuple = select_parents(neighborhood_intersections)
             offspring = crossover(parents_tuple)
             offspring = mutate(offspring)
+
 
 if __name__ == "__main__":
 
