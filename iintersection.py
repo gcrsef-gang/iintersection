@@ -45,6 +45,9 @@ NEIGHBORHOOD_TYPE = "S_3"
 EDGE_REPLACEMENT_PROB = 0.1
 ZIPPER_PROB = 0.5
 
+# General parameters.
+PARETO_FRONT_SIZE = 20
+
 # Random number generator.
 rng = np.random.default_rng(42069)
 
@@ -93,6 +96,29 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
         if same_start_nodes and route_nodes[1].getID() == scenario_edge.getEndNode().getID():
             corresponding_routes.append(route)
     return corresponding_routes[rng.choice(len(corresponding_routes))]
+
+
+def _get_dominant_solution(s1, s2):
+    """Returns the solution that is Pareto dominant over the other.
+
+    If neither dominate the other, a random solution is returned.
+    Assumes both solutions have had their fitnesses evaluated.
+
+    Parameters
+    ----------
+    s1: Intersection
+        An intersection.
+    s2: Intersection
+        An intersection.
+
+    Returns
+    -------
+    Intersection
+        The intersection that is either dominant over the other or was randomly chosen.
+    bool
+        Whether the chosen intersection is actually dominant over the other or if it was randomly
+        chosen.
+    """
 
 
 def generate_inital_population(input_scenario):
@@ -285,11 +311,13 @@ def select_parents(neighborhood):
         The two winners of the binary tournament.
     """
     halfway = len(neighborhood) // 2
-    shuffled_neigborhood = rng.shuffle(neighborhood)
+    shuffled_neighborhood = rng.shuffle(neighborhood)
     neighborhoodlists = [shuffled_neighborhood[:halfway], shuffled_neighborhood[halfway:]]
     parents = []
     for neighborhoodlist in neighborhoodlists:
         while len(neighborhoodlist) > 1:
+            # TODO: Move this code to _get_dominant_solution and replace this code with a call to
+            # that function.
             intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
             intersection1safety = intersection1.getMetric(METRICS["SAFETY"])
             intersection1efficiency = intersection1.getMetric(METRICS["EFFICIENCY"])
@@ -469,7 +497,7 @@ def mutate(solution):
                     new_loc = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in current_loc]
                     current_junction_type = node.getJunctionType()
                     new_node = IntersectionNode(new_loc, current_junction_type)
-                changed_nodes[node.getID()] = new_node
+                changed_node_ids[node.getID()] = new_node
                 new_nodes.append(new_node)
             else:
                 new_nodes.append(node)
@@ -524,11 +552,16 @@ def mutate(solution):
                     if up_or_down == 2:
                         edge.setPriority(current_priority+1)
             new_edges.append(edge)
+        # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
         route.setEdgeList(new_edges)
-            
-def evaluate(solution):
-    """Evaluates the given solution.
+
+
+def evaluate_fitness(solution):
+    """Evaluates the fitness of the given solution.
+
+    The solution's fitness metrics are now cached, so that the getMetrics() method will return
+    updated values.
 
     Parameters
     ----------
@@ -540,9 +573,52 @@ def evaluate(solution):
     tuple of float
         The safety, emmissions, and efficiency values of the intersection, in that order.
     """
-    solution.simulate(JUNCTIONTYPES["SUMO"])
-    solution.updateMetrics(JUNCTIONTYPES["SUMO"])
-    return solution.getMetric(METRICS["SAFETY"]), solution.getMetric(METRICS["EFFICIENCY"]), solutioni.getMetrics(METRICS["EMISSIONS"])
+    solution.simulate(BACKENDS["SUMO"])
+    solution.updateMetrics(BACKENDS["SUMO"])
+    return solution.getMetric(METRICS["SAFETY"]), solution.getMetric(METRICS["EFFICIENCY"]), solution.getMetrics(METRICS["EMISSIONS"])
+
+
+def remove_nodes(solution):
+    """Removes nodes in an intersection that are redundant or unnecessary.
+
+    For example, a node that is part of fewer than two edges will always be removed.
+
+    Parameters
+    ----------
+    solution: Intersection
+        An intersection. Edited in-place.
+    """
+
+
+def create_nodes(solution):
+    """Creates nodes (junctions) in an intersection where edges intersect or come close to
+    intersecting.
+
+    Parameters
+    ----------
+    solution: Intersection
+        An intersection. Edited in-place.
+    """
+
+
+def update_pareto_front(pareto_front, non_dominated, dominated):
+    """Updates a Pareto front.
+
+     - Removes the dominated solution that was previously undominated if it was previously in the front.
+     - If no solution was removed in the previous step, chooses the a random solution and removes it
+       from the front.
+     - Adds the new non-dominated solution to the front.
+
+    Parameters
+    ----------
+    pareto_front: list of Intersection
+        A list of non-dominated solutions. Edited in-place.
+    non_dominated: Intersection
+        A new non-dominated solution to potentially be added to the front.
+    dominated: Intersection
+        A dominated solution to be removed from the front if was previously part of it.
+    """
+
 
 def optimize(input_scenario):
     """Estimates the pareto front of optimal intersections for a given traffic scenario.
@@ -557,15 +633,41 @@ def optimize(input_scenario):
     list of Intersection
         An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
-    grid = generate_inital_population(input_scenario)
-    evaluations_num = 0
-    while evaluations_num < MAX_EVALUATIONS:
+    # TODO: Make est_pareto_front a set for faster search. Requires making Intersection hashable.
+    est_pareto_front = []
+    population = generate_inital_population(input_scenario)
+    # Evaluate all solutions in the grid.
+    for row in population:
+        for solution in row:
+            evaluate_fitness(solution)
+    num_evaluations = POPULATION_SIZE
+
+    # Mainloop:
+    while num_evaluations < MAX_EVALUATIONS:
+        intermediate_population = [[] for _ in range(GRID_SIDELEN)]
         for i in range(POPULATION_SIZE):
+            # Produce offspring.
             pos = (i // GRID_SIDELEN, i % GRID_SIDELEN)
-            neighborhood_intersections = get_neighborhood(pos, grid)
-            parents_tuple = select_parents(neighborhood_intersections)
-            offspring = crossover(parents_tuple)
+            neighborhood = get_neighborhood(pos, population)
+            parents = select_parents(neighborhood)
+            offspring = crossover(parents)
             mutate(offspring)
+            remove_nodes(offspring)
+            create_nodes(offspring)
+
+            # Choose an individual.
+            evaluate_fitness(offspring)
+            num_evaluations += 1
+            current_individual = population[pos[0]][pos[1]]
+            replacement_solution, dominant = _get_dominant_solution(current_individual, offspring)
+
+            # Place the chosen individual in the population and possibly in the Pareto front.
+            intermediate_population[pos[0]].append(replacement_solution)
+            if replacement_solution is offspring and dominant:
+                update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+        population = intermediate_population
+
+    return est_pareto_front
 
 
 if __name__ == "__main__":
