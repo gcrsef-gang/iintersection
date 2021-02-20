@@ -461,7 +461,7 @@ def mutate(solution):
             if rng.random() < MUTATION_CHANCE:
                 attribute = rng.choice([1, 2])
                 if attribute == 1:
-                    new_junction_type = rng.choice(list(JUNCTIONTYPE.values()))
+                    new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
                     current_loc = node.getLoc()
                     new_node = IntersectionNode(current_loc, new_junction_type)
                 if attribute == 2:
@@ -540,7 +540,9 @@ def evaluate(solution):
     tuple of float
         The safety, emmissions, and efficiency values of the intersection, in that order.
     """
-
+    solution.simulate(JUNCTIONTYPES["SUMO"])
+    solution.updateMetrics(JUNCTIONTYPES["SUMO"])
+    return solution.getMetric(METRICS["SAFETY"]), solution.getMetric(METRICS["EFFICIENCY"]), solutioni.getMetrics(METRICS["EMISSIONS"])
 
 def optimize(input_scenario):
     """Estimates the pareto front of optimal intersections for a given traffic scenario.
@@ -563,7 +565,7 @@ def optimize(input_scenario):
             neighborhood_intersections = get_neighborhood(pos, grid)
             parents_tuple = select_parents(neighborhood_intersections)
             offspring = crossover(parents_tuple)
-            offspring = mutate(offspring)
+            mutate(offspring)
 
 
 if __name__ == "__main__":
