@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <list>
 
 #include "lib/pugixml/src/pugixml.hpp"
 
@@ -80,9 +81,9 @@ public:
 private:
     DataManager() {}
 
-    std::vector<IntersectionRoute> routesData;
-    std::vector<Node> scenarioNodeData;
-    std::vector<IntersectionNode> intersectionNodeData;
+    std::list<IntersectionRoute> routesData;
+    std::list<Node> scenarioNodeData;
+    std::list<IntersectionNode> intersectionNodeData;
 };
 
 
@@ -182,7 +183,7 @@ public:
     }
 
 protected:
-    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX; std::cout << "Constructed Node() with id " << this->UUID << std::endl; }
+    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
 
 private:
     unsigned short int UUID;
@@ -321,32 +322,25 @@ private:
  */
 
 
-DataManager* DataManager::Get() {
+DataManager* DataManager::Get()
+{
     static DataManager manager;
     return &manager;
 }
 
 
-Node* DataManager::createNewNode(Point3d loc) {
-    std::cout << "Data manager constructing new node" << std::endl;
-    std::cout << "Global nodes size: " << scenarioNodeData.size() << std::endl;
+Node* DataManager::createNewNode(Point3d loc)
+{
     Node tmp(loc);
     scenarioNodeData.push_back(tmp);
-
-    for (int i = 0; i < scenarioNodeData.size(); i++) {
-        std::cout << "Global node " << &scenarioNodeData[i] << ", " << scenarioNodeData[i].getID() << std::endl;
-    }
-
-    std::cout << std::endl;
-    // scenarioNodeData.size() is guaranteed to be > 0, so this is OK
-    return &scenarioNodeData[scenarioNodeData.size() - 1];
+    return &(*scenarioNodeData.rbegin());
 }
 
 
-void DataManager::removeNode(Node* node)
-{
-    scenarioNodeData.erase(std::remove(scenarioNodeData.begin(), scenarioNodeData.end(), *node), scenarioNodeData.end());
-}
+// void DataManager::removeNode(Node* node)
+// {
+//     scenarioNodeData.erase(std::remove(scenarioNodeData.begin(), scenarioNodeData.end(), *node), scenarioNodeData.end());
+// }
 
 
 IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
@@ -370,14 +364,8 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
         Node* node = GLOBALDATA->createNewNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
         nodeIDMap[xmlNode.attribute("id").value()] = node;
         this->nodes.push_back(node);
-
-        for (int i = 0; i < nodes.size(); i++) {
-            std::cout << "add node " << nodes[i] << ", " << nodes[i]->getID() << std::endl;
-        }
-
-        std::cout << std::endl;
     }
-    
+
 
     // Append edges to vector.
     pugi::xml_node edgesList = xmlScenario.child("edges");
