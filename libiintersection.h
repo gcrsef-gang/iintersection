@@ -222,6 +222,8 @@ public:
 
     std::vector<IntersectionNode*> getNodeList() const {return this->nodeList;}
     std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
+    void setNodeList(std::vector<IntersectionNode*> nodelist) {nodeList = nodelist;}
+    void setEdgeList(std::vector<IntersectionEdge> edgelist) {edgeList = edgelist;}
 
 private:
     std::vector<IntersectionNode*> nodeList;

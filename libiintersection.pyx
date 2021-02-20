@@ -65,6 +65,8 @@ cdef extern from "libiintersection.h" namespace "ii":
         IntersectionRoute(vector[intersectionnodepointer] nodeList, vector[IntersectionEdge] edgeList) except +
         vector[intersectionnodepointer] getNodeList()
         vector[IntersectionEdge] getEdgeList()
+        void setNodeList(vector[intersectionnodepointer] nodelist)
+        void setEdgeList(vector[IntersectionEdge] edgelist)
 
     cdef cppclass Node:
         Node()
@@ -257,6 +259,21 @@ cdef class PyIntersectionRoute:
         for intersectionedge in intersectionedgevector:
             pyvector.append(PyIntersectionEdge.fromCppObject(intersectionedge))
         return pyvector
+
+    def setNodeList(self, nodelist):
+        cdef vector[intersectionnodepointer] cyvector
+        for node in nodelist:
+            if isinstance(node, PyIntersectionNodePointer):
+                cyvector.push_back(node.c_intersectionnodepointer)
+            elif isinstance(node, PyIntersectionNode):
+                cyvector.push_back(&(node.c_intersectionnode))
+        self.c_intersectionroute.setNodeList(cyvector)
+
+    def setEdgeList(self, edgelist):
+        cdef vector[IntersectionEdge] cyvector
+        for edge in edgeList:
+            cyvector.append(edge.c_intersectionedge)
+        self.c_intersectionroute.setEdgeList(cyvector)
 
 cdef class PyNode:
     """

@@ -453,6 +453,9 @@ def mutate(solution):
     """
     for route in solution.getRoutes():
         nodes = route.getNodeList()[1:-1]
+        edges = route.getEdgeList()
+        new_nodes = []
+        new_edges = []
         changed_node_ids = {}
         for node in nodes:
             if rng.random() < MUTATION_CHANCE:
@@ -467,7 +470,10 @@ def mutate(solution):
                     current_junction_type = node.getJunctionType()
                     new_node = IntersectionNode(new_loc, current_junction_type)
                 changed_nodes[node.getID()] = new_node
-        for edge in routes.getEdgeList():
+                new_nodes.append(new_node)
+            else:
+                new_nodes.append(node)
+        for edge in edges:
             changed_ids = list(changed_node_ids.keys())
             start_node_id = edge.getStartNode().getID()
             end_node_id = edge.getEndNode().getID()
@@ -517,6 +523,10 @@ def mutate(solution):
                         edge.setPriority(current_priority-1)
                     if up_or_down == 2:
                         edge.setPriority(current_priority+1)
+            new_edges.append(edge)
+        route.setNodeList(new_nodes)
+        route.setEdgeList(new_edges)
+            
 def evaluate(solution):
     """Evaluates the given solution.
 
