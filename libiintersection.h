@@ -159,6 +159,8 @@ public:
     IntersectionNode* getEndNode() const {return this->e;}
     std::vector<Point3d> getHandles() const {return this->handles;}
 
+    void setHandles(std::vector<Point3d> handles_) {this->handles = handles_;}
+
 private:
     void setStartNode(IntersectionNode*);
     void setEndNode(IntersectionNode*);
@@ -234,6 +236,10 @@ public:
     void setStartNode(Node*);
     void setEndNode(Node*);
 
+    void setHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
+    void setNumLanes(short int numLanes_) {this->numlanes = numLanes_;}
+    void setSpeedLimit(short int speedLimit_) {this->speedlimit = speedLimit_;}
+    void setPriority(short int priority_) {this->priority = priority_;}
 
 private:
     BezierCurve shape;
@@ -263,6 +269,8 @@ public:
 
     std::vector<IntersectionNode*> getNodeList() const {return this->nodeList;}
     std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
+    void setNodeList(std::vector<IntersectionNode*> nodelist) {nodeList = nodelist;}
+    void setEdgeList(std::vector<IntersectionEdge> edgelist) {edgeList = edgelist;}
 
 private:
     std::vector<IntersectionNode*> nodeList;
@@ -278,6 +286,7 @@ public:
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+    IntersectionRoute* getRoutes() const;
 
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
@@ -286,6 +295,7 @@ private:
     std::vector<IntersectionRoute*> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
+    std::vector<IntersectionRoute*> routes;
 };
 
 
