@@ -295,7 +295,6 @@ private:
     std::vector<IntersectionRoute*> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
-    std::vector<IntersectionRoute*> routes;
 };
 
 

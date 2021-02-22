@@ -98,7 +98,7 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
     return corresponding_routes[rng.choice(len(corresponding_routes))]
 
 
-def _get_dominant_solution(s1, s2):
+def _get_dominant_solution(intersection1, intersection2):
     """Returns the solution that is Pareto dominant over the other.
 
     If neither dominate the other, a random solution is returned.
@@ -119,6 +119,52 @@ def _get_dominant_solution(s1, s2):
         Whether the chosen intersection is actually dominant over the other or if it was randomly
         chosen.
     """
+    intersection1safety = intersection1.getMetric(METRICS["SAFETY"])
+    intersection1efficiency = intersection1.getMetric(METRICS["EFFICIENCY"])
+    intersection1emissions = intersection1.getMetric(METRICS["EMISSIONS"])
+    intersection2safety = intersection2.getMetric(METRICS["SAFETY"])
+    intersection2efficiency = intersection2.getMetric(METRICS["EFFICIENCY"])
+    intersection2emissions = intersection2.getMetric(METRICS["EMISSIONS"])
+    counter = []
+    if intersection1safety < intersection2safety:
+        counter.append(1)
+    elif intersection1safety > intersection2safety:
+        counter.append(2)
+    else:
+        counter.append(0)
+
+    if intersection1efficiency < intersection2efficiency:
+        counter.append(1)
+    elif intersection1efficiency > intersection2efficiency:
+        counter.append(2)
+    else:
+        counter.append(0)
+
+    if intersection1emissions < intersection2emissions:
+        counter.append(1)
+    elif intersection1emissions > intersection2emissions:
+        counter.append(2)
+    else:
+        counter.append(0)
+
+    if 1 not in counter:
+        if 2 not in counter:
+            randint = rng.choice([1,2])
+            if randint == 1:
+                selected = intersection1
+            else:
+                selected = intersection2
+        else:
+            selected = intersection2
+    elif 2 not in counter:
+        selected = intersection1
+    else:
+        randint = rng.choice([1,2])
+        if randint == 1:
+            selected = intersection1
+        else:
+            selected = intersection2
+    return selected
 
 
 def generate_inital_population(input_scenario):
@@ -319,51 +365,7 @@ def select_parents(neighborhood):
             # TODO: Move this code to _get_dominant_solution and replace this code with a call to
             # that function.
             intersection1, intersection2 = neighborhoodlist[0], neighborhoodlist[1]
-            intersection1safety = intersection1.getMetric(METRICS["SAFETY"])
-            intersection1efficiency = intersection1.getMetric(METRICS["EFFICIENCY"])
-            intersection1emissions = intersection1.getMetric(METRICS["EMISSIONS"])
-            intersection2safety = intersection2.getMetric(METRICS["SAFETY"])
-            intersection2efficiency = intersection2.getMetric(METRICS["EFFICIENCY"])
-            intersection2emissions = intersection2.getMetric(METRICS["EMISSIONS"])
-            counter = []
-            if intersection1safety < intersection2safety:
-                counter.append(1)
-            elif intersection1safety > intersection2safety:
-                counter.append(2)
-            else:
-                counter.append(0)
-
-            if intersection1efficiency < intersection2efficiency:
-                counter.append(1)
-            elif intersection1efficiency > intersection2efficiency:
-                counter.append(2)
-            else:
-                counter.append(0)
-
-            if intersection1emissions < intersection2emissions:
-                counter.append(1)
-            elif intersection1emissions > intersection2emissions:
-                counter.append(2)
-            else:
-                counter.append(0)
-
-            if 1 not in counter:
-                if 2 not in counter:
-                    randint = rng.choice([1,2])
-                    if randint == 1:
-                        selected = intersection1
-                    else:
-                        selected = intersection2
-                else:
-                    selected = intersection2
-            elif 2 not in counter:
-                selected = intersection1
-            else:
-                randint = rng.choice([1,2])
-                if randint == 1:
-                    selected = intersection1
-                else:
-                    selected = intersection2
+            selected = _get_dominant_solution(intersection1, intersection2)
             if selected == intersection1:
                 neighborhoodlist.pop(0)
             else:
