@@ -394,11 +394,11 @@ def crossover(parents, input_scenario):
     Intersection
         The result of crossing over the two parents.
     """
-    all_edges = []
+    all_edges = set()
     for parent in parents:
         for route in parent.getRoutes():
             for edge in route.getEdgesList():
-                all_edges.append(edge)
+                all_edges.add(edge)
 
     child_routes = []
     for scenario_edge in input_scenario.getEdges():
@@ -597,6 +597,42 @@ def remove_nodes(solution):
     solution: Intersection
         An intersection. Edited in-place.
     """
+    solution_routes = solution.getRoutes()
+
+    # Maps nodes to the in-edges and out-edges.
+    all_nodes = {}
+    for route in solution_routes:
+        for node in route.getNodeList()[1:-1]:
+            all_nodes[node] = [[], []]
+    for route in solution_routes:
+        for edge in route.getEdgeList():
+            for node in all_nodes:
+                if node == edge.getEndNode():
+                    all_nodes[node][0].append(edge)
+                elif node == edge.getStartNode():
+                    all_nodes[node][1].append(edge)
+
+    nodes_to_remove = set()
+    edges_to_remove = set()
+    for node, edges in all_nodes.items():
+        in_edges, out_edges = edges
+        if len(in_edges) == 0 or len(out_edges) == 0:
+            nodes_to_remove.add(node)
+            for edge in sum(all_nodes[node]):
+                edges_to_remove.add(edge)
+
+    for route in solution_routes:
+        new_route_nodes = []
+        new_route_edges = [edge for edge in route.getEdgeList() if edge not in edges_to_remove]
+
+        for node in route.getNodeList():
+            if node not in nodes_to_remove:
+                new_route_nodes.append(node)
+            else:
+                node.removeReference()
+
+        route.setRouteNodes(new_route_nodes)
+        route.setRouteEdges(new_route_edges)
 
 
 def create_nodes(solution):
