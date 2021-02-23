@@ -76,16 +76,13 @@ class DataManager
 public:
     DataManager(const DataManager&) = delete;
     DataManager& operator= (const DataManager&) = delete;
-
     static DataManager* Get();
-    Node* createNewNode(Point3d loc);
-    void removeNode(Node* node);
+
+    IntersectionNode* createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType);
+    void removeIntersectionNode(IntersectionNode* intersectionNode);
 
 private:
     DataManager() {}
-
-    std::list<IntersectionRoute> routesData;
-    std::list<Node> scenarioNodeData;
     std::list<IntersectionNode> intersectionNodeData;
 };
 
@@ -178,37 +175,32 @@ friend class IntersectionEdge;
 class Node
 {
 public:
+    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() {return this->UUID;}
-
-    void removeFromGlobalNodes()
-    {
-        // we can assume that it exists in GLOBAL_NODES, otherwise this method wouldn't be callable
-        GLOBALDATA->removeNode(this);
-    }
-
-protected:
-    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
 
 private:
     unsigned short int UUID;
     Point3d loc;
-
-friend class DataManager;
 };
+
+
+typedef Node ScenarioNode;
 
 
 class IntersectionNode : public Node
 {
 public:
     JUNCTIONTYPES getJunctionType() {return this->junctionType;}
-
+    void addReference() {this->referenceCount++;}
+    void RemoveReference() {if(referenceCount == 1){GLOBALDATA->removeIntersectionNode(this);} 
+        else this->referenceCount--;}
 private:
     IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
-        : Node(loc), junctionType(junctionType) {}
+        : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
-    JUNCTIONTYPES junctionType;
-
+    JUNCTIONTYPES junctionType; 
+    unsigned short int referenceCount;
 friend class DataManager;
 };
 
@@ -255,7 +247,7 @@ private:
 class ScenarioEdge : public Edge
 {
 public:
-    ScenarioEdge(Node* s, Node* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+    ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
 
     std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
 
@@ -284,18 +276,18 @@ private:
 class Intersection
 {
 public:
-    Intersection(std::vector<IntersectionRoute*> routes) : routes(routes) {}
+    Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
 
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
-    IntersectionRoute* getRoutes() const;
+    std::vector<IntersectionRoute*> getRoutes() const;
 
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
 
 private:
-    std::vector<IntersectionRoute*> routes;
+    std::vector<IntersectionRoute> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
 };
@@ -316,13 +308,13 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 class IntersectionScenario
 {
 public:
-    IntersectionScenario(std::vector<Node*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
+    IntersectionScenario(std::vector<ScenarioNode> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
     IntersectionScenario(std::string xmlFilePath);
-    std::vector<Node*> getNodes() const {return this->nodes;}
+    std::vector<ScenarioNode> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
 
 private:
-    std::vector<Node*> nodes;
+    std::vector<ScenarioNode> nodes;
     std::vector<ScenarioEdge> edges;
 };
 
@@ -341,17 +333,17 @@ DataManager* DataManager::Get()
 }
 
 
-Node* DataManager::createNewNode(Point3d loc)
+IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
 {
-    Node tmp(loc);
-    scenarioNodeData.push_back(tmp);
-    return &(*scenarioNodeData.rbegin());
+    IntersectionNode tmp(loc, junctionType);
+    intersectionNodeData.push_back(tmp);
+    return &(*intersectionNodeData.rbegin());
 }
 
 
-// void DataManager::removeNode(Node* node)
+// void DataManager::removeIntersectionNode(IntersectionNode* node)
 // {
-//     scenarioNodeData.erase(std::remove(scenarioNodeData.begin(), scenarioNodeData.end(), *node), scenarioNodeData.end());
+//     intersectionNodeData.erase(std::remove(intersectionNodeData.begin(), intersectionNodeData.end(), *node), intersectionNodeData.end());
 // }
 
 
@@ -370,11 +362,11 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 
     // Append nodes to vector.
     pugi::xml_node nodesList = xmlScenario.child("nodes");
-    std::map<std::string, Node*> nodeIDMap;
+    std::map<std::string, ScenarioNode*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        Node* node = GLOBALDATA->createNewNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
-        nodeIDMap[xmlNode.attribute("id").value()] = node;
+        Node node({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
+        nodeIDMap[xmlNode.attribute("id").value()] = &node;
         this->nodes.push_back(node);
     }
 
@@ -383,7 +375,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     pugi::xml_node edgesList = xmlScenario.child("edges");
     for (pugi::xml_node xmlEdge = edgesList.first_child(); xmlEdge; xmlEdge = xmlEdge.next_sibling())
     {
-        Node* s, *e;
+        ScenarioNode* s, *e;
         s = nodeIDMap[xmlEdge.attribute("from").value()];
         e = nodeIDMap[xmlEdge.attribute("to").value()];
 
@@ -421,7 +413,6 @@ void Intersection::simulate(BACKENDS back) const
 void Intersection::updateMetrics(BACKENDS back)
 {
     const std::map<METRICS, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
-
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
         (SumoInterface::Get()->*(it->second))(this);
@@ -432,9 +423,9 @@ void Intersection::updateMetrics(BACKENDS back)
 std::string Intersection::getNodeXML() const
 {
     std::vector<IntersectionNode*> nodes;
-    for (IntersectionRoute* route : routes)
+    for (IntersectionRoute route : routes)
     {
-        for (IntersectionNode* node : route->getNodeList())
+        for (IntersectionNode* node : route.getNodeList())
         {
             nodes.push_back(node);
         }
@@ -468,13 +459,13 @@ std::string Intersection::getEdgeXML() const
     // Node IDs as they will be in the node file generated by getNodeXML.
     std::map<IntersectionNode*, int> sumoNodeIDs;
     std::vector<IntersectionEdge> edges;
-    for (IntersectionRoute* route : routes)
+    for (IntersectionRoute route : routes)
     {
-        for (IntersectionEdge edge : route->getEdgeList())
+        for (IntersectionEdge edge : route.getEdgeList())
         {
             edges.push_back(edge);
         }
-        std::vector<IntersectionNode*> routeNodes = route->getNodeList();
+        std::vector<IntersectionNode*> routeNodes = route.getNodeList();
         for (int i = 0; i < routeNodes.size(); i++)
         {
             sumoNodeIDs.insert(std::pair<IntersectionNode*, int>(routeNodes[i], i));
@@ -487,8 +478,8 @@ std::string Intersection::getEdgeXML() const
     for (int i = 0; i < edges.size(); i++)
     {
         edgeTag << "\t<edge id=\"" << i << "e\" ";
-        edgeTag << "from=\"" << sumoNodeIDs[(IntersectionNode*)edges[i].getStartNode()] << "\" ";
-        edgeTag << "to=\"" << sumoNodeIDs[(IntersectionNode*)edges[i].getEndNode()] << "\" ";
+        edgeTag << "from=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getStartNode())] << "\" ";
+        edgeTag << "to=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getEndNode())] << "\" ";
         edgeTag << "priority=\"" << edges[i].getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i].getNumLanes() << "\" ";
         edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\"/>\n";
