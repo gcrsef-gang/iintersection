@@ -12,14 +12,14 @@ from libiintersection import (
     PY_METRICS as METRICS, PY_BACKENDS as BACKENDS, PY_JUNCTIONTYPES as JUNCTIONTYPES,
     PY_VEHICLETYPES as VEHICLETYPES,
     PyBezierCurve as BezierCurve, PyIntersection as Intersection,
-    PyIntersectionNode as IntersectionNode, PyIntersectionRoute as IntersectionRoute, 
-    PyIntersectionEdge as IntersectionEdge, PyIntersectionScenario as IntersectionScenario, 
-    PyNode as Node, PyScenarioEdge as ScenarioEdge
+    PyIntersectionRoute as IntersectionRoute, PyIntersectionEdge as IntersectionEdge,
+    PyIntersectionScenario as IntersectionScenario,  PyNode as Node, PyScenarioEdge as ScenarioEdge,
+    PyIntersectionNodePointer as IntersectionNodePointer
 )
 
 
 # Default values; can be changed by command-line args.
-BACKEND = BACKENDS["SUMO"]
+BACKEND = BACKENDS["sumo"]
 MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
 GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
@@ -43,7 +43,6 @@ NEIGHBORHOOD_TYPE = "S_3"
 
 # Crossover parameters.
 EDGE_REPLACEMENT_PROB = 0.1
-ZIPPER_PROB = 0.5
 
 # General parameters.
 PARETO_FRONT_SIZE = 20
@@ -119,12 +118,13 @@ def _get_dominant_solution(intersection1, intersection2):
         Whether the chosen intersection is actually dominant over the other or if it was randomly
         chosen.
     """
-    intersection1safety = intersection1.getMetric(METRICS["SAFETY"])
-    intersection1efficiency = intersection1.getMetric(METRICS["EFFICIENCY"])
-    intersection1emissions = intersection1.getMetric(METRICS["EMISSIONS"])
-    intersection2safety = intersection2.getMetric(METRICS["SAFETY"])
-    intersection2efficiency = intersection2.getMetric(METRICS["EFFICIENCY"])
-    intersection2emissions = intersection2.getMetric(METRICS["EMISSIONS"])
+    dominant = True
+    intersection1safety = intersection1.getMetric(METRICS["safety"])
+    intersection1efficiency = intersection1.getMetric(METRICS["efficiency"])
+    intersection1emissions = intersection1.getMetric(METRICS["emissions"])
+    intersection2safety = intersection2.getMetric(METRICS["safety"])
+    intersection2efficiency = intersection2.getMetric(METRICS["efficiency"])
+    intersection2emissions = intersection2.getMetric(METRICS["emissions"])
     counter = []
     if intersection1safety < intersection2safety:
         counter.append(1)
@@ -149,6 +149,7 @@ def _get_dominant_solution(intersection1, intersection2):
 
     if 1 not in counter:
         if 2 not in counter:
+            dominant = False
             randint = rng.choice([1,2])
             if randint == 1:
                 selected = intersection1
@@ -159,12 +160,13 @@ def _get_dominant_solution(intersection1, intersection2):
     elif 2 not in counter:
         selected = intersection1
     else:
+        dominant = False
         randint = rng.choice([1,2])
         if randint == 1:
             selected = intersection1
         else:
             selected = intersection2
-    return selected
+    return selected, dominant
 
 
 def generate_inital_population(input_scenario):
@@ -216,7 +218,7 @@ def generate_inital_population(input_scenario):
         node_z_coords = np.array(node_z_coords, dtype=np.int32)
         node_types = rng.integers(low=0, high=len(JUNCTIONTYPES), size=num_nodes[i])
         intersection_nodes = [
-            IntersectionNode(x, y, z, node_type) for x, y, z, node_type
+            IntersectionNodePointer(x, y, z, node_type) for x, y, z, node_type
             in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
         ]
 
@@ -227,14 +229,14 @@ def generate_inital_population(input_scenario):
             end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [IntersectionNode(end_node)]
+            route_nodes = [IntersectionNodePointer(end_node)]
             route_edges = []
             while True:
                 exit_ = False
 
                 # 50/50 chance of connecting the previous node to the end node of the route.
                 if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
-                    route_nodes.append(IntersectionNode(end_node))
+                    route_nodes.append(IntersectionNodePointer(end_node))
                     exit_ = True
                 elif len(unchosen_nodes) > 0:
                     # Choose a random node with a probability proportional to its distance from the
@@ -251,7 +253,7 @@ def generate_inital_population(input_scenario):
                     unchosen_nodes.remove(next_node_index)
                 else:
                     # All the nodes of the intersection are in this route.
-                    route_nodes.append(IntersectionNode(end_node))
+                    route_nodes.append(IntersectionNodePointer(end_node))
                     exit_ = True
 
                 # Generate an edge between the two most recently added nodes in the route.
@@ -392,11 +394,11 @@ def crossover(parents, input_scenario):
     Intersection
         The result of crossing over the two parents.
     """
-    all_edges = []
+    all_edges = set()
     for parent in parents:
         for route in parent.getRoutes():
             for edge in route.getEdgesList():
-                all_edges.append(edge)
+                all_edges.add(edge)
 
     child_routes = []
     for scenario_edge in input_scenario.getEdges():
@@ -465,6 +467,9 @@ def crossover(parents, input_scenario):
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
 
+        for node in child_route_nodes:
+            node.addReference()
+
         child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
     return Intersection(child_routes) 
@@ -493,14 +498,15 @@ def mutate(solution):
                 if attribute == 1:
                     new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
                     current_loc = node.getLoc()
-                    new_node = IntersectionNode(current_loc, new_junction_type)
+                    new_node = IntersectionNodePointer(current_loc, new_junction_type)
                 if attribute == 2:
                     current_loc = node.getLoc()
                     new_loc = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in current_loc]
                     current_junction_type = node.getJunctionType()
-                    new_node = IntersectionNode(new_loc, current_junction_type)
+                    new_node = IntersectionNodePointer(new_loc, current_junction_type)
                 changed_node_ids[node.getID()] = new_node
                 new_nodes.append(new_node)
+                node.removeReference()
             else:
                 new_nodes.append(node)
         for edge in edges:
@@ -554,6 +560,7 @@ def mutate(solution):
                     if up_or_down == 2:
                         edge.setPriority(current_priority+1)
             new_edges.append(edge)
+
         # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
         route.setEdgeList(new_edges)
@@ -575,9 +582,9 @@ def evaluate_fitness(solution):
     tuple of float
         The safety, emmissions, and efficiency values of the intersection, in that order.
     """
-    solution.simulate(BACKENDS["SUMO"])
-    solution.updateMetrics(BACKENDS["SUMO"])
-    return solution.getMetric(METRICS["SAFETY"]), solution.getMetric(METRICS["EFFICIENCY"]), solution.getMetrics(METRICS["EMISSIONS"])
+    solution.simulate(BACKENDS["sumo"])
+    solution.updateMetrics(BACKENDS["sumo"])
+    return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
 
 
 def remove_nodes(solution):
@@ -590,11 +597,46 @@ def remove_nodes(solution):
     solution: Intersection
         An intersection. Edited in-place.
     """
+    solution_routes = solution.getRoutes()
+
+    # Maps nodes to the in-edges and out-edges.
+    all_nodes = {}
+    for route in solution_routes:
+        for node in route.getNodeList()[1:-1]:
+            all_nodes[node] = [[], []]
+    for route in solution_routes:
+        for edge in route.getEdgeList():
+            for node in all_nodes:
+                if node == edge.getEndNode():
+                    all_nodes[node][0].append(edge)
+                elif node == edge.getStartNode():
+                    all_nodes[node][1].append(edge)
+
+    nodes_to_remove = set()
+    edges_to_remove = set()
+    for node, edges in all_nodes.items():
+        in_edges, out_edges = edges
+        if len(in_edges) == 0 or len(out_edges) == 0:
+            nodes_to_remove.add(node)
+            for edge in sum(all_nodes[node]):
+                edges_to_remove.add(edge)
+
+    for route in solution_routes:
+        new_route_nodes = []
+        new_route_edges = [edge for edge in route.getEdgeList() if edge not in edges_to_remove]
+
+        for node in route.getNodeList():
+            if node not in nodes_to_remove:
+                new_route_nodes.append(node)
+            else:
+                node.removeReference()
+
+        route.setRouteNodes(new_route_nodes)
+        route.setRouteEdges(new_route_edges)
 
 
 def create_nodes(solution):
-    """Creates nodes (junctions) in an intersection where edges intersect or come close to
-    intersecting.
+    """Creates nodes in an intersection where edges intersect or come close to intersecting.
 
     Parameters
     ----------
@@ -607,7 +649,7 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.
 
      - Removes the dominated solution that was previously undominated if it was previously in the front.
-     - If no solution was removed in the previous step, chooses the a random solution and removes it
+     - If no solution was removed in the previous step, chooses the random solution and removes it
        from the front.
      - Adds the new non-dominated solution to the front.
 
@@ -665,8 +707,14 @@ def optimize(input_scenario):
 
             # Place the chosen individual in the population and possibly in the Pareto front.
             intermediate_population[pos[0]].append(replacement_solution)
-            if replacement_solution is offspring and dominant:
-                update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+            if replacement_solution is offspring:
+                # A reference is getting deleted to each of the nodes in the intersection that will
+                # no longer be part of the the population.
+                for route in current_individual.getRoutes():
+                    for node in route.getNodeList():
+                        node.removeReference()
+                if dominant:
+                    update_pareto_front(est_pareto_front, replacement_solution, current_individual)
         population = intermediate_population
 
     return est_pareto_front
