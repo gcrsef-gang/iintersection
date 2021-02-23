@@ -75,9 +75,8 @@ public:
     DataManager& operator= (const DataManager&) = delete;
 
     static DataManager* Get();
-    Node* createNewNode(Point3d loc);
-    void removeNode(Node* node);
-
+    static IntersectionNode* createIntersectionNode(Point3d loc, JUNCTIONTYPES junctiontype);
+    void removeIntersectionNode(IntersectionNode* intersectionnode);
 private:
     DataManager() {}
 
@@ -177,13 +176,6 @@ class Node
 public:
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() {return this->UUID;}
-
-    void removeFromGlobalNodes()
-    {
-        // we can assume that it exists in GLOBAL_NODES, otherwise this method wouldn't be calleable
-        GLOBALDATA->removeNode(this);
-    }
-
 protected:
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
 
@@ -199,13 +191,15 @@ class IntersectionNode : public Node
 {
 public:
     JUNCTIONTYPES getJunctionType() {return this->junctionType;}
-
+    void addReference() {this->referenceCount++;}
+    void RemoveReference() {if(referenceCount == 1){GLOBALDATA->removeIntersectionNode(this);} 
+        else this->referenceCount--;}
 private:
     IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
-        : Node(loc), junctionType(junctionType) {}
+        : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
-    JUNCTIONTYPES junctionType;
-
+    JUNCTIONTYPES junctionType; 
+    unsigned short int referenceCount;
 friend class DataManager;
 };
 
@@ -338,17 +332,17 @@ DataManager* DataManager::Get()
 }
 
 
-Node* DataManager::createNewNode(Point3d loc)
+IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES junctiontype)
 {
-    Node tmp(loc);
-    scenarioNodeData.push_back(tmp);
-    return &(*scenarioNodeData.rbegin());
+    IntersectionNode tmp(loc, junctiontype);
+    intersectionNodeData.push_back(tmp);
+    return &(*intersectionNodeData.rbegin());
 }
 
 
-// void DataManager::removeNode(Node* node)
+// void DataManager::removeIntersectionNode(IntersectionNode* node)
 // {
-//     scenarioNodeData.erase(std::remove(scenarioNodeData.begin(), scenarioNodeData.end(), *node), scenarioNodeData.end());
+//     intersectionNodeData.erase(std::remove(intersectionNodeData.begin(), intersectionNodeData.end(), *node), intersectionNodeData.end());
 // }
 
 
@@ -370,7 +364,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     std::map<std::string, Node*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        Node* node = GLOBALDATA->createNewNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
+        Node* node = GLOBALDATA->createIntersectionNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
         nodeIDMap[xmlNode.attribute("id").value()] = node;
         this->nodes.push_back(node);
     }
