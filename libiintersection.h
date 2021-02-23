@@ -15,7 +15,10 @@
 #define LIBIINTERSECTION_H
 
 #ifdef SUMO_LIB
-// #include <sumo/main.h>
+#include <netload/NLBuilder.h>
+#include <utils/options/OptionsIO.h>
+#include <utils/common/SystemFrame.h>
+#include <utils/xml/XMLSubSys.h>
 #endif
 
 
@@ -27,7 +30,7 @@
 #include <vector>
 #include <list>
 
-#include "lib/pugixml/src/pugixml.hpp"
+#include <pugixml/src/pugixml.hpp>
 
 
 /**
@@ -53,7 +56,7 @@ static unsigned short int CURRENT_UUID_MAX = 0;
 
 
 // Global constants for the evaluation backends
-static const std::size_t SIMTIME = 604800;  // Seconds of simulation time
+static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 
@@ -126,7 +129,7 @@ public:
 
 private:
     SumoInterface() {}
-    // MSNet* net;
+    MSNet* net;
 };
 
 
@@ -144,7 +147,7 @@ public:
     short int z() {return this->z_;}
 
 private:
-    const short int x_, y_, z_;
+    short int x_, y_, z_;
 };
 
 
@@ -180,7 +183,7 @@ public:
 
     void removeFromGlobalNodes()
     {
-        // we can assume that it exists in GLOBAL_NODES, otherwise this method wouldn't be calleable
+        // we can assume that it exists in GLOBAL_NODES, otherwise this method wouldn't be callable
         GLOBALDATA->removeNode(this);
     }
 
@@ -233,8 +236,8 @@ public:
     short int getSpeedLimit() const {return this->speedlimit;}
     short int getPriority() const {return this->priority;}
     
-    void setStartNode(Node*);
-    void setEndNode(Node*);
+    void setStartNode(IntersectionNode*);
+    void setEndNode(IntersectionNode*);
 
     void setHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
     void setNumLanes(short int numLanes_) {this->numlanes = numLanes_;}
@@ -295,7 +298,6 @@ private:
     std::vector<IntersectionRoute*> routes;
     std::map<METRICS, double> currentMetrics;
     const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
-    std::vector<IntersectionRoute*> routes;
 };
 
 
@@ -411,7 +413,7 @@ void Intersection::simulate(BACKENDS back) const
     if (back == BACKENDS::SUMO)
     {
         SumoInterface::Get()->rebuildNet(this);
-        SumoInterface::Get()->performSim(SIMTIME);
+        SumoInterface::Get()->performSim(SIMTIME_);
     }
 }
 
