@@ -168,6 +168,24 @@ def _get_dominant_solution(intersection1, intersection2):
             selected = intersection2
     return selected, dominant
 
+def generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
+    # Choose points from bounding box, expanded by half of the distance between them.
+    half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
+    max_x = max(start_x, end_x) + half_distance
+    min_x = min(start_x, end_x) - half_distance
+    max_y = max(start_y, end_y) + half_distance
+    min_y = min(start_y, end_y) - half_distance
+    max_z = max(start_z, end_z) + half_distance
+    min_z = min(start_z, end_z) - half_distance
+
+    points = []
+    for _ in range(n_bezier_handles):
+        point = []
+        point.append(rng.choice(np.arange(min_x, max_x + 1)))
+        point.append(rng.choice(np.arange(min_y, max_y + 1)))
+        point.append(rng.choice(np.arange(min_z, max_z + 1)))
+        points.append(point)
+    return points
 
 def generate_inital_population(input_scenario):
     """Generates the initial grid of solutions.
@@ -266,22 +284,7 @@ def generate_inital_population(input_scenario):
                 end_coords = route_nodes[-1].getLoc()
                 end_x, end_y, end_z = end_coords
                 if n_bezier_handles:
-                    # Choose points from bounding box, expanded by half of the distance between them.
-                    half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
-                    max_x = max(start_x, end_x) + half_distance
-                    min_x = min(start_x, end_x) - half_distance
-                    max_y = max(start_y, end_y) + half_distance
-                    min_y = min(start_y, end_y) - half_distance
-                    max_z = max(start_z, end_z) + half_distance
-                    min_z = min(start_z, end_z) - half_distance
-
-                    points = []
-                    for _ in range(n_bezier_handles):
-                        point = []
-                        point.append(rng.choice(np.arange(min_x, max_x + 1)))
-                        point.append(rng.choice(np.arange(min_y, max_y + 1)))
-                        point.append(rng.choice(np.arange(min_z, max_z + 1)))
-                        points.append(point)
+                    points = generate_bezier_handles(start_coords, end_coords, n_bezier_handles)
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
@@ -519,6 +522,18 @@ def mutate(solution):
                 edge.setEndNode(changed_node_ids[end_node_id])
             handles = edge.getShape().getHandles()
             modified_handles = []
+            if rng.random() < MUTATION_CHANCE:
+                if len(handles) == 0:
+                    handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
+                elif len(handles) == 3:
+                    handles.pop(rng.choice(len(handles-1)))
+                else:
+                    randint = rng.choice(1)
+                    if randint == 0:
+                        handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
+                    else:
+                        handles.pop(rng.choice(len(handles-1)))
+
             for handle in handles:
                 if rng.random() < MUTATION_CHANCE:
                     new_handle = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in handle]

@@ -231,7 +231,7 @@ public:
     void setStartNode(IntersectionNode*);
     void setEndNode(IntersectionNode*);
 
-    void setHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
+    void updateHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
     void setNumLanes(short int numLanes_) {this->numlanes = numLanes_;}
     void setSpeedLimit(short int speedLimit_) {this->speedlimit = speedLimit_;}
     void setPriority(short int priority_) {this->priority = priority_;}
