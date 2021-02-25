@@ -585,73 +585,14 @@ def evaluate_fitness(solution):
     solution.simulate(BACKENDS["sumo"])
     solution.updateMetrics(BACKENDS["sumo"])
     return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
-
-
-def remove_nodes(solution):
-    """Removes nodes in an intersection that are redundant or unnecessary.
-
-    For example, a node that is part of fewer than two edges will always be removed.
-
-    Parameters
-    ----------
-    solution: Intersection
-        An intersection. Edited in-place.
-    """
-    solution_routes = solution.getRoutes()
-
-    # Maps nodes to the in-edges and out-edges.
-    all_nodes = {}
-    for route in solution_routes:
-        for node in route.getNodeList()[1:-1]:
-            all_nodes[node] = [[], []]
-    for route in solution_routes:
-        for edge in route.getEdgeList():
-            for node in all_nodes:
-                if node == edge.getEndNode():
-                    all_nodes[node][0].append(edge)
-                elif node == edge.getStartNode():
-                    all_nodes[node][1].append(edge)
-
-    nodes_to_remove = set()
-    edges_to_remove = set()
-    for node, edges in all_nodes.items():
-        in_edges, out_edges = edges
-        if len(in_edges) == 0 or len(out_edges) == 0:
-            nodes_to_remove.add(node)
-            for edge in sum(all_nodes[node]):
-                edges_to_remove.add(edge)
-
-    for route in solution_routes:
-        new_route_nodes = []
-        new_route_edges = [edge for edge in route.getEdgeList() if edge not in edges_to_remove]
-
-        for node in route.getNodeList():
-            if node not in nodes_to_remove:
-                new_route_nodes.append(node)
-            else:
-                node.removeReference()
-
-        route.setRouteNodes(new_route_nodes)
-        route.setRouteEdges(new_route_edges)
-
-
-def create_nodes(solution):
-    """Creates nodes in an intersection where edges intersect or come close to intersecting.
-
-    Parameters
-    ----------
-    solution: Intersection
-        An intersection. Edited in-place.
-    """
-
+    
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.
 
      - Removes the dominated solution that was previously undominated if it was previously in the front.
-     - If no solution was removed in the previous step, chooses the random solution and removes it
-       from the front.
      - Adds the new non-dominated solution to the front.
+     - If no solution was removed in the first step, removes a random solution from the front.
 
     Parameters
     ----------
@@ -662,6 +603,13 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
     dominated: Intersection
         A dominated solution to be removed from the front if was previously part of it.
     """
+    dominated_removed = False
+    if dominated in pareto_front:
+        pareto_front.remove(dominated)
+        dominated_removed = True
+    pareto_front.append(non_dominated)
+    if not dominated_removed:
+        pareto_front.pop(rng.choice(len(pareto_front)))
 
 
 def optimize(input_scenario):
@@ -677,7 +625,6 @@ def optimize(input_scenario):
     list of Intersection
         An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
-    # TODO: Make est_pareto_front a set for faster search. Requires making Intersection hashable.
     est_pareto_front = []
     population = generate_inital_population(input_scenario)
     # Evaluate all solutions in the grid.
@@ -696,8 +643,6 @@ def optimize(input_scenario):
             parents = select_parents(neighborhood)
             offspring = crossover(parents)
             mutate(offspring)
-            remove_nodes(offspring)
-            create_nodes(offspring)
 
             # Choose an individual.
             evaluate_fitness(offspring)
