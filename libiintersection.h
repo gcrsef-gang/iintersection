@@ -16,6 +16,7 @@
 
 #ifdef SUMO_LIB
 #include <netload/NLBuilder.h>
+#include <microsim/MSNet.h>
 #include <utils/options/OptionsIO.h>
 #include <utils/common/SystemFrame.h>
 #include <utils/xml/XMLSubSys.h>
@@ -54,8 +55,8 @@ class IntersectionRoute;
 // Tracking current max node ID
 static unsigned short int CURRENT_UUID_MAX = 0;
 
-
 // Global constants for the evaluation backends
+static const short int BEZIER_SAMPLES = 500;
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
@@ -122,7 +123,7 @@ public:
     void performSim(const std::size_t time) {};
     void updateIntersectionEmissions(Intersection*) {};
     void updateIntersectionSafety(Intersection*) {};
-    void updateIntersectionEfficiency(Intersection*) {};
+    void updateIntersectionEfficiency(Intersection*);
 
 private:
     SumoInterface() {}
@@ -130,7 +131,9 @@ private:
 };
 
 
-// SumoInterface SumoInterface::instance;
+// void SumoInterface::updateIntersectionEfficiency(Intersection* int_) {
+//     this->net->getTravelTime();
+// }
 
 
 class Point3d
@@ -567,7 +570,22 @@ std::string Intersection::getEdgeXML() const
         edgeTag << "to=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getEndNode())] << "\" ";
         edgeTag << "priority=\"" << edges[i].getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i].getNumLanes() << "\" ";
-        edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\"/>\n";
+        edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\" ";
+
+        edgeTag << "shape=\"";
+    
+        std::vector<Point3d> sampledPoints = edges[i].getShape().rasterize(BEZIER_SAMPLES);
+
+        for (int p = 0; p < sampledPoints.size(); p++)
+        {
+            edgeTag << std::to_string(sampledPoints[p].x()) << ","
+                    << std::to_string(sampledPoints[p].y()) << ","
+                    << std::to_string(sampledPoints[p].z());
+
+            if (p != sampledPoints.size() - 1) {edgeTag << " ";}
+        }
+
+        edgeTag << "\"/>\n";
 
         xmlOutput += edgeTag.str();
         edgeTag.clear();
