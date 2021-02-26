@@ -62,7 +62,7 @@ enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 
 enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+const std::map<std::string, VEHICLETYPES> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
 
 enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
 const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::ZIPPER, "zipper"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
@@ -139,7 +139,8 @@ private:
 class Point3d
 {
 public:
-    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {};
+    Point3d() {}
+    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {}
     Point3d(std::vector<short int> coords) : x_(coords[0]), y_(coords[1]), z_(coords[2]) {}
 
     short int x() {return this->x_;}
@@ -183,6 +184,7 @@ friend class IntersectionEdge;
 class Node
 {
 public:
+    Node() {}
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() const {return this->UUID;}
@@ -191,7 +193,7 @@ private:
     unsigned short int UUID;
     Point3d loc;
 
-friend bool operator==(const Node& n1, const Node& n2) {return n1.getID() == n2.getID();};
+friend bool operator==(const Node& n1, const Node& n2) {return n1.getID() == n2.getID();}
 };
 
 
@@ -206,6 +208,7 @@ public:
     void removeReference();
 
 private:
+    IntersectionNode() {}
     IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
         : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
@@ -218,6 +221,7 @@ friend class DataManager;
 class Edge
 {
 public:
+    Edge() {}
     Edge(Node* s, Node* e) : s(s), e(e) {};
     Node* getStartNode() const {return s;}
     Node* getEndNode() const {return e;}
@@ -231,6 +235,7 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
+    IntersectionEdge() {}
     IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
@@ -257,6 +262,7 @@ private:
 class ScenarioEdge : public Edge
 {
 public:
+    ScenarioEdge() {}
     ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
 
     std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
@@ -269,6 +275,7 @@ private:
 class IntersectionRoute
 {
 public:
+    IntersectionRoute() {}
     IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
         : nodeList(nodeList), edgeList(edgeList) {}
 
@@ -286,6 +293,7 @@ private:
 class Intersection
 {
 public:
+    Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
 
     void simulate(BACKENDS) const;
@@ -318,6 +326,7 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 class IntersectionScenario
 {
 public:
+    IntersectionScenario() {}
     IntersectionScenario(std::vector<ScenarioNode> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
     IntersectionScenario(std::string xmlFilePath);
     std::vector<ScenarioNode> getNodes() const {return this->nodes;}
@@ -471,7 +480,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
             // If attribute contains demand data.
             if (pos != std::string::npos)
             {
-                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES.at(attrName.substr(0, pos));
+                VEHICLETYPES vehicleType = VEHICLETYPES_INDICES.at(attrName.substr(0, pos));
                 short int vehicleDemand = attr.as_int();
                 demand[vehicleType] = vehicleDemand;
             }

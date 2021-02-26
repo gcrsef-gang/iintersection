@@ -4,7 +4,7 @@
 from libcpp.vector cimport vector
 from libcpp.map cimport map as map_
 from libcpp.utility cimport pair
-from libcpp.string import string
+from libcpp.string cimport string
 from cython.operator cimport dereference as deref
 from cython.operator cimport postincrement
 
@@ -17,13 +17,14 @@ ctypedef IntersectionNode* intersectionnodepointer
 
 cdef extern from "libiintersection.h" namespace "ii":
     cdef cppclass DataManager:
-        @staticmethod
         intersectionnodepointer createIntersectionNode(Point3d loc, JUNCTIONTYPES junctiontype)
+
+    DataManager* GLOBALDATA
 
     cdef cppclass IntersectionScenario:
         IntersectionScenario()
         IntersectionScenario(vector[Node] nodes, vector[ScenarioEdge] edges) except +
-        IntersectionScenario(char* xmlFilePath)
+        IntersectionScenario(string xmlFilePath)
         vector[Node] getNodes()
         vector[ScenarioEdge] getEdges()
         
@@ -34,35 +35,38 @@ cdef extern from "libiintersection.h" namespace "ii":
         void updateMetrics(BACKENDS)
         double getMetric(METRICS)
 
-        char* getNodeXML()
-        char* getEdgeXML() 
+        string getNodeXML()
+        string getEdgeXML() 
         vector[intersectionroutepointer] getRoutes()
 
-    cdef enum METRICS:
-        SAFETY,
-        EMISSIONS, 
-        EFFICIENCY 
-    cdef enum BACKENDS:
-        SUMO,
-        VISSIM,
-        CITYFLOW
-    cdef enum JUNCTIONTYPES:
-        PRIORITY,
-        TRAFFIC_LIGHT,
-        RIGHT_BEFORE_LEFT,
-        UNREGULATED,
-        PRIORITY_STOP,
-        TRAFFIC_LIGHT_UNREGULATED,
-        ALLWAY_STOP,
-        ZIPPER,
-        TRAFFIC_LIGHT_RIGHT_ON_RED
-    cdef enum VEHICLETYPES:
-        CAR,
-        TRUCK,
-        IDK
+    ctypedef enum METRICS:
+        SAFETY "ii::METRICS::SAFTEY"
+        EMISSIONS "ii::METRICS::EMISSIONS"
+        EFFICIENCY "ii::METRICS::EFFICIENCY"
 
-    cdef map_[JUNCTIONTYPES, char*] JUNCTIONTYPES_NAMES
-    cdef map_[char*, VEHICLETYPES] VEHICLETYPES_INDICES
+    ctypedef enum BACKENDS:
+        SUMO "ii::BACKENDS::SUMO"
+        VISSIM "ii::BACKENDS::VISSIM"
+        CITYFLOW "ii::BACKENDS::CITYFLOW"
+
+    ctypedef enum JUNCTIONTYPES:
+        PRIORITY "ii::JUNCTIONTYPES::PRIORITY"
+        TRAFFIC_LIGHT "ii::JUNCTIONTYPES::TRAFFIC_LIGHT"
+        RIGHT_BEFORE_LEFT "ii::JUNCTIONTYPES::RIGHT_BEFORE_LEFT"
+        UNREGULATED "ii::JUNCTIONTYPES::UNREGULATED"
+        PRIORITY_STOP "ii::JUNCTIONTYPES::PRIORITY_STOP"
+        TRAFFIC_LIGHT_UNREGULATED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED"
+        ALLWAY_STOP "ii::JUNCTIONTYPES::ALLWAY_STOP"
+        ZIPPER "ii::JUNCTIONTYPES::ZIPPER"
+        TRAFFIC_LIGHT_RIGHT_ON_RED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED"
+
+    ctypedef enum VEHICLETYPES:
+        CAR "ii::JUNCTIONTYPES::CAR"
+        TRUCK "ii::JUNCTIONTYPES::TRUCK"
+        IDK "ii::JUNCTIONTYPES::IDK"
+
+    cdef map_[JUNCTIONTYPES, string] JUNCTIONTYPES_NAMES
+    cdef map_[string, VEHICLETYPES] VEHICLETYPES_INDICES
 
     cdef cppclass IntersectionRoute:
         IntersectionRoute()
@@ -297,22 +301,15 @@ cdef class PyBezierCurve:
 
         cdef list handles = []
         cdef Point3d handle
-        for handle in bezier_curve.getHandles():
+        cdef vector[Point3d] c_handles = bezier_curve.getHandles()
+        for handle in c_handles:
             handles.append((handle.x(), handle.y(), handle.z()))
 
         return PyBezierCurve(s, e, handles)
 
-    def rasterize(self):
-        cdef vector[Point3d] point3dvector = self.c_beziercurve.rasterize()
-        pyvector = []
-        for point3d in point3dvector:
-            pointtuple = (point3d.x(), point3d.y(), point3d.z())
-            pyvector.append(pointtuple)
-        return pyvector
-
     def getStartNode(self):
         return PyIntersectionNodePointer.fromCppPointer(self.c_beziercurve.getStartNode())
-    
+
     def getEndNode(self):
         return PyIntersectionNodePointer.fromCppPointer(self.c_beziercurve.getEndNode())
 
@@ -353,7 +350,8 @@ cdef class PyScenarioEdge(PyEdge):
 
         cdef map_[VEHICLETYPES, short int] c_demand
         for key, value in demand.items():
-            c_demand[<VEHICLETYPES>VEHICLETYPES_INDICES[key]] = <short int>value
+            # Must use .at() because `VEHICLETYPES_INDICES` is const.
+            c_demand[<VEHICLETYPES>VEHICLETYPES_INDICES.at(key)] = <short int>value
         self.c_scenarioedge = ScenarioEdge(s.c_nodepointer, e.c_nodepointer, c_demand)
         self.c_edge = self.c_scenarioedge
 
@@ -464,7 +462,7 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
 
     def __cinit__(self, point3d=None, junctiontype=None):
         if point3d != None:
-            self.c_intersectionnodepointer = DataManager.createIntersectionNode(Point3d(point3d), junctiontype)
+            self.c_intersectionnodepointer = GLOBALDATA.createIntersectionNode(Point3d(point3d), junctiontype)
         else:
             self.c_intersectionnodepointer = NULL
 
