@@ -57,7 +57,6 @@ cdef extern from "libiintersection.h" namespace "ii":
         PRIORITY_STOP "ii::JUNCTIONTYPES::PRIORITY_STOP"
         TRAFFIC_LIGHT_UNREGULATED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED"
         ALLWAY_STOP "ii::JUNCTIONTYPES::ALLWAY_STOP"
-        ZIPPER "ii::JUNCTIONTYPES::ZIPPER"
         TRAFFIC_LIGHT_RIGHT_ON_RED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED"
 
     ctypedef enum VEHICLETYPES:
@@ -134,7 +133,7 @@ cdef extern from "libiintersection.h" namespace "ii":
 PY_METRICS = {"safety": 0, "emissions": 1, "efficiency": 2}
 PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2}
 PY_VEHICLETYPES = {"car": 0, "truck": 1, "idk": 2}
-PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "zipper": 7, "traffic_light_on_red": 8}
+PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "traffic_light_on_red": 7}
 
 ctypedef PyNode PyScenarioNode
 ctypedef PyNodePointer PyScenarioNodePointer
