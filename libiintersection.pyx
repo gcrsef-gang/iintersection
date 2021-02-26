@@ -121,7 +121,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         short int getPriority()
         void setStartNode(intersectionnodepointer s)
         void setEndNode(intersectionnodepointer e)
-        void updateHandles(vector[Point3d] handles)
+        void setHandles(vector[Point3d] handles)
         void setNumLanes(short int numLanes)
         void setSpeedLimit(short int speedLimit)
         void setPriority(short int priority)
@@ -418,11 +418,11 @@ cdef class PyIntersectionEdge(PyEdge):
         cdef PyIntersectionNodePointer intersection_node_pointer = intersectionnode_pointer
         self.c_intersectionedge.setEndNode(intersection_node_pointer.c_intersectionnodepointer)
 
-    def updateHandles(self, handles):
+    def setHandles(self, handles):
         cdef vector[Point3d] cyhandles
         for handle in handles:
             cyhandles.push_back(Point3d(handle[0], handle[1], handle[2]))
-        self.c_intersectionedge.updateHandles(cyhandles)
+        self.c_intersectionedge.setHandles(cyhandles)
 
     def setNumLanes(self, numlanes):
         self.c_intersectionedge.setNumLanes(numlanes)
