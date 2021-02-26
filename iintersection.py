@@ -168,6 +168,24 @@ def _get_dominant_solution(intersection1, intersection2):
             selected = intersection2
     return selected, dominant
 
+def generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
+    # Choose points from bounding box, expanded by half of the distance between them.
+    half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
+    max_x = max(start_x, end_x) + half_distance
+    min_x = min(start_x, end_x) - half_distance
+    max_y = max(start_y, end_y) + half_distance
+    min_y = min(start_y, end_y) - half_distance
+    max_z = max(start_z, end_z) + half_distance
+    min_z = min(start_z, end_z) - half_distance
+
+    points = []
+    for _ in range(n_bezier_handles):
+        point = []
+        point.append(rng.choice(np.arange(min_x, max_x + 1)))
+        point.append(rng.choice(np.arange(min_y, max_y + 1)))
+        point.append(rng.choice(np.arange(min_z, max_z + 1)))
+        points.append(point)
+    return points
 
 def generate_inital_population(input_scenario):
     """Generates the initial grid of solutions.
@@ -266,22 +284,7 @@ def generate_inital_population(input_scenario):
                 end_coords = route_nodes[-1].getLoc()
                 end_x, end_y, end_z = end_coords
                 if n_bezier_handles:
-                    # Choose points from bounding box, expanded by half of the distance between them.
-                    half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
-                    max_x = max(start_x, end_x) + half_distance
-                    min_x = min(start_x, end_x) - half_distance
-                    max_y = max(start_y, end_y) + half_distance
-                    min_y = min(start_y, end_y) - half_distance
-                    max_z = max(start_z, end_z) + half_distance
-                    min_z = min(start_z, end_z) - half_distance
-
-                    points = []
-                    for _ in range(n_bezier_handles):
-                        point = []
-                        point.append(rng.choice(np.arange(min_x, max_x + 1)))
-                        point.append(rng.choice(np.arange(min_y, max_y + 1)))
-                        point.append(rng.choice(np.arange(min_z, max_z + 1)))
-                        points.append(point)
+                    points = generate_bezier_handles(start_coords, end_coords, n_bezier_handles)
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
@@ -519,13 +522,25 @@ def mutate(solution):
                 edge.setEndNode(changed_node_ids[end_node_id])
             handles = edge.getShape().getHandles()
             modified_handles = []
+            if rng.random() < MUTATION_CHANCE:
+                if len(handles) == 0:
+                    handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
+                elif len(handles) == 3:
+                    handles.pop(rng.choice(len(handles-1)))
+                else:
+                    randint = rng.choice(1)
+                    if randint == 0:
+                        handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
+                    else:
+                        handles.pop(rng.choice(len(handles-1)))
+
             for handle in handles:
                 if rng.random() < MUTATION_CHANCE:
                     new_handle = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in handle]
                     modified_handles.append(new_handle)
                 else:
                     modified_handles.append(handle)
-            edge.updateHandles(modified_handles)
+            edge.setHandles(modified_handles)
             
             if rng.random() < MUTATION_CHANCE:
                 current_speed_limit = edge.getSpeedLimit()
@@ -585,73 +600,14 @@ def evaluate_fitness(solution):
     solution.simulate(BACKENDS["sumo"])
     solution.updateMetrics(BACKENDS["sumo"])
     return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
-
-
-def remove_nodes(solution):
-    """Removes nodes in an intersection that are redundant or unnecessary.
-
-    For example, a node that is part of fewer than two edges will always be removed.
-
-    Parameters
-    ----------
-    solution: Intersection
-        An intersection. Edited in-place.
-    """
-    solution_routes = solution.getRoutes()
-
-    # Maps nodes to the in-edges and out-edges.
-    all_nodes = {}
-    for route in solution_routes:
-        for node in route.getNodeList()[1:-1]:
-            all_nodes[node] = [[], []]
-    for route in solution_routes:
-        for edge in route.getEdgeList():
-            for node in all_nodes:
-                if node == edge.getEndNode():
-                    all_nodes[node][0].append(edge)
-                elif node == edge.getStartNode():
-                    all_nodes[node][1].append(edge)
-
-    nodes_to_remove = set()
-    edges_to_remove = set()
-    for node, edges in all_nodes.items():
-        in_edges, out_edges = edges
-        if len(in_edges) == 0 or len(out_edges) == 0:
-            nodes_to_remove.add(node)
-            for edge in sum(all_nodes[node]):
-                edges_to_remove.add(edge)
-
-    for route in solution_routes:
-        new_route_nodes = []
-        new_route_edges = [edge for edge in route.getEdgeList() if edge not in edges_to_remove]
-
-        for node in route.getNodeList():
-            if node not in nodes_to_remove:
-                new_route_nodes.append(node)
-            else:
-                node.removeReference()
-
-        route.setRouteNodes(new_route_nodes)
-        route.setRouteEdges(new_route_edges)
-
-
-def create_nodes(solution):
-    """Creates nodes in an intersection where edges intersect or come close to intersecting.
-
-    Parameters
-    ----------
-    solution: Intersection
-        An intersection. Edited in-place.
-    """
-
+    
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.
 
      - Removes the dominated solution that was previously undominated if it was previously in the front.
-     - If no solution was removed in the previous step, chooses the random solution and removes it
-       from the front.
      - Adds the new non-dominated solution to the front.
+     - If no solution was removed in the first step, removes a random solution from the front.
 
     Parameters
     ----------
@@ -662,6 +618,13 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
     dominated: Intersection
         A dominated solution to be removed from the front if was previously part of it.
     """
+    dominated_removed = False
+    if dominated in pareto_front:
+        pareto_front.remove(dominated)
+        dominated_removed = True
+    pareto_front.append(non_dominated)
+    if not dominated_removed:
+        pareto_front.pop(rng.choice(len(pareto_front)))
 
 
 def optimize(input_scenario):
@@ -677,7 +640,6 @@ def optimize(input_scenario):
     list of Intersection
         An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
-    # TODO: Make est_pareto_front a set for faster search. Requires making Intersection hashable.
     est_pareto_front = []
     population = generate_inital_population(input_scenario)
     # Evaluate all solutions in the grid.
@@ -696,8 +658,6 @@ def optimize(input_scenario):
             parents = select_parents(neighborhood)
             offspring = crossover(parents)
             mutate(offspring)
-            remove_nodes(offspring)
-            create_nodes(offspring)
 
             # Choose an individual.
             evaluate_fitness(offspring)
