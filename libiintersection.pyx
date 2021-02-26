@@ -132,6 +132,9 @@ PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2}
 PY_VEHICLETYPES = {"car": 0, "truck": 1, "idk": 2}
 PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "zipper": 7, "traffic_light_on_red": 8}
 
+ctypedef PyNode PyScenarioNode
+ctypedef PyNodePointer PyScenarioNodePointer
+
 
 cdef class PyIntersectionScenario:
     cdef IntersectionScenario c_intersectionscenario
@@ -154,15 +157,11 @@ cdef class PyIntersectionScenario:
         self.c_intersectionscenario = IntersectionScenario(nodes, edges)
 
     @staticmethod
-    cdef PyIntersectionScenario fromCppObject(IntersectionScenario c_intersectionscenario):
+    def fromXML(str xmlFilePath):
+        cdef IntersectionScenario c_intersectionscenario = IntersectionScenario(xmlFilePath.encode("utf-8"))
         cdef PyIntersectionScenario scenario = PyIntersectionScenario()
         scenario.c_intersectionscenario = c_intersectionscenario
         return scenario
-
-    @staticmethod
-    def fromXML(str xmlFilePath):
-        cdef IntersectionScenario c_intersectionscenario = IntersectionScenario(xmlFilePath.encode("utf-8"))
-        return PyIntersectionScenario.fromCppObject(c_intersectionscenario)
 
     def getNodes(self):
         cdef vector[Node] nodevector = self.c_intersectionscenario.getNodes()
@@ -291,7 +290,6 @@ cdef class PyBezierCurve:
 
     @staticmethod
     cdef PyBezierCurve fromCppObject(BezierCurve bezier_curve):
-
         cdef intersectionnodepointer node_ptr = bezier_curve.getStartNode()
         cdef PyIntersectionNodePointer s = PyIntersectionNodePointer.fromCppPointer(node_ptr)
         node_ptr = bezier_curve.getEndNode()
@@ -348,7 +346,7 @@ cdef class PyScenarioEdge(PyEdge):
 
     cdef ScenarioEdge c_scenarioedge
 
-    def __cinit__(self, PyNodePointer s=None, PyNodePointer e=None, dict demand={}):
+    def __cinit__(self, PyScenarioNodePointer s=None, PyScenarioNodePointer e=None, dict demand={}):
 
         if s is None and e is None and not demand:
             return
@@ -356,7 +354,7 @@ cdef class PyScenarioEdge(PyEdge):
         cdef map_[VEHICLETYPES, short int] c_demand
         for key, value in demand.items():
             c_demand[<VEHICLETYPES>VEHICLETYPES_INDICES[key]] = <short int>value
-        self.c_scenarioedge = ScenarioEdge(s, e, c_demand)
+        self.c_scenarioedge = ScenarioEdge(s.c_nodepointer, e.c_nodepointer, c_demand)
         self.c_edge = self.c_scenarioedge
 
     @staticmethod
