@@ -58,14 +58,14 @@ static unsigned short int CURRENT_UUID_MAX = 0;
 // Global constants for the evaluation backends
 static const short int BEZIER_SAMPLES = 500;
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
-enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
-enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
+namespace METRICS {enum METRICS_ {SAFETY, EMISSIONS, EFFICIENCY};}
+namespace BACKENDS {enum BACKENDS_ {SUMO, VISSIM, CITYFLOW};}
 
-enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<std::string, VEHICLETYPES> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK, IDK};}
+const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
 
-enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};
-const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
+namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
+const std::map<JUNCTIONTYPES::JUNCTIONTYPES_, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 
 // Intersection evaluation function type
@@ -79,7 +79,7 @@ public:
     DataManager& operator= (const DataManager&) = delete;
     static DataManager* Get();
 
-    IntersectionNode* createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType);
+    IntersectionNode* createIntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType);
     void removeIntersectionNode(IntersectionNode* intersectionNode);
 
 private:
@@ -203,16 +203,16 @@ typedef Node ScenarioNode;
 class IntersectionNode : public Node
 {
 public:
-    JUNCTIONTYPES getJunctionType() const {return this->junctionType;}
+    JUNCTIONTYPES::JUNCTIONTYPES_ getJunctionType() const {return this->junctionType;}
     void addReference() {this->referenceCount++;}
     void removeReference();
 
 private:
     IntersectionNode() {}
-    IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
+    IntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType)
         : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
-    JUNCTIONTYPES junctionType; 
+    JUNCTIONTYPES::JUNCTIONTYPES_ junctionType; 
     unsigned short int referenceCount;
 friend class DataManager;
 };
@@ -263,12 +263,12 @@ class ScenarioEdge : public Edge
 {
 public:
     ScenarioEdge() {}
-    ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+    ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand) : Edge(s, e), demand(demand) {}
 
-    std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
+    std::map<VEHICLETYPES::VEHICLETYPES_, short int> getDemand() {return this->demand;}
 
 private:
-    std::map<VEHICLETYPES, short int> demand;
+    std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 };
 
 
@@ -296,9 +296,9 @@ public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
 
-    void simulate(BACKENDS) const;
-    void updateMetrics(BACKENDS);
-    double getMetric(METRICS);
+    void simulate(BACKENDS::BACKENDS_) const;
+    void updateMetrics(BACKENDS::BACKENDS_);
+    double getMetric(METRICS::METRICS_);
     std::vector<IntersectionRoute*> getRoutes() const;
 
     std::string getEdgeXML() const;
@@ -306,12 +306,12 @@ public:
 
 private:
     std::vector<IntersectionRoute> routes;
-    std::map<METRICS, double> currentMetrics;
-    const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
+    std::map<METRICS::METRICS_, double> currentMetrics;
+    const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
 };
 
 
-const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
+const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
 {
     {
         BACKENDS::SUMO, {
@@ -352,7 +352,7 @@ DataManager* DataManager::Get()
 }
 
 
-IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
+IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType)
 {
     IntersectionNode tmp(loc, junctionType);
     intersectionNodeData.push_back(tmp);
@@ -470,7 +470,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
         s = nodeIDMap[xmlEdge.attribute("from").value()];
         e = nodeIDMap[xmlEdge.attribute("to").value()];
 
-        std::map<VEHICLETYPES, short int> demand;
+        std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 
         for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute())
         {
@@ -480,7 +480,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
             // If attribute contains demand data.
             if (pos != std::string::npos)
             {
-                VEHICLETYPES vehicleType = VEHICLETYPES_INDICES.at(attrName.substr(0, pos));
+                VEHICLETYPES::VEHICLETYPES_ vehicleType = VEHICLETYPES_INDICES.at(attrName.substr(0, pos));
                 short int vehicleDemand = attr.as_int();
                 demand[vehicleType] = vehicleDemand;
             }
@@ -491,7 +491,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 }
 
 
-void Intersection::simulate(BACKENDS back) const
+void Intersection::simulate(BACKENDS::BACKENDS_ back) const
 {
     if (back == BACKENDS::SUMO)
     {
@@ -501,9 +501,9 @@ void Intersection::simulate(BACKENDS back) const
 }
 
 
-void Intersection::updateMetrics(BACKENDS back)
+void Intersection::updateMetrics(BACKENDS::BACKENDS_ back)
 {
-    const std::map<METRICS, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
+    const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
         (SumoInterface::Get()->*(it->second))(this);

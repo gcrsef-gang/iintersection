@@ -15,9 +15,25 @@ ctypedef IntersectionRoute* intersectionroutepointer
 ctypedef IntersectionNode* intersectionnodepointer
 
 
+cdef extern from "libiintersection.h" namespace "ii::METRICS":
+    cdef enum METRICS_:
+        SAFETY, EMISSIONS, EFFICIENCY
+
+cdef extern from "libiintersection.h" namespace "ii::BACKENDS":
+    cdef enum BACKENDS_:
+        SUMO, VISSIM, CITYFLOW
+
+cdef extern from "libiintersection.h" namespace "ii::VEHICLETYPES":
+    cdef enum VEHICLETYPES_:
+        CAR, TRUCK, IDK
+
+cdef extern from "libiintersection.h" namespace "ii::JUNCTIONTYPES":
+    cdef enum JUNCTIONTYPES_:
+        PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED
+
 cdef extern from "libiintersection.h" namespace "ii":
     cdef cppclass DataManager:
-        intersectionnodepointer createIntersectionNode(Point3d loc, JUNCTIONTYPES junctiontype)
+        intersectionnodepointer createIntersectionNode(Point3d loc, JUNCTIONTYPES_ junctiontype)
 
     DataManager* GLOBALDATA
 
@@ -31,41 +47,16 @@ cdef extern from "libiintersection.h" namespace "ii":
     cdef cppclass Intersection:
         Intersection()
         Intersection(vector[IntersectionRoute]) except +
-        void simulate(BACKENDS)
-        void updateMetrics(BACKENDS)
-        double getMetric(METRICS)
+        void simulate(BACKENDS_)
+        void updateMetrics(BACKENDS_)
+        double getMetric(METRICS_)
 
         string getNodeXML()
         string getEdgeXML() 
         vector[intersectionroutepointer] getRoutes()
 
-    ctypedef enum METRICS:
-        SAFETY "ii::METRICS::SAFTEY"
-        EMISSIONS "ii::METRICS::EMISSIONS"
-        EFFICIENCY "ii::METRICS::EFFICIENCY"
-
-    ctypedef enum BACKENDS:
-        SUMO "ii::BACKENDS::SUMO"
-        VISSIM "ii::BACKENDS::VISSIM"
-        CITYFLOW "ii::BACKENDS::CITYFLOW"
-
-    ctypedef enum JUNCTIONTYPES:
-        PRIORITY "ii::JUNCTIONTYPES::PRIORITY"
-        TRAFFIC_LIGHT "ii::JUNCTIONTYPES::TRAFFIC_LIGHT"
-        RIGHT_BEFORE_LEFT "ii::JUNCTIONTYPES::RIGHT_BEFORE_LEFT"
-        UNREGULATED "ii::JUNCTIONTYPES::UNREGULATED"
-        PRIORITY_STOP "ii::JUNCTIONTYPES::PRIORITY_STOP"
-        TRAFFIC_LIGHT_UNREGULATED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED"
-        ALLWAY_STOP "ii::JUNCTIONTYPES::ALLWAY_STOP"
-        TRAFFIC_LIGHT_RIGHT_ON_RED "ii::JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED"
-
-    ctypedef enum VEHICLETYPES:
-        CAR "ii::JUNCTIONTYPES::CAR"
-        TRUCK "ii::JUNCTIONTYPES::TRUCK"
-        IDK "ii::JUNCTIONTYPES::IDK"
-
-    cdef map_[JUNCTIONTYPES, string] JUNCTIONTYPES_NAMES
-    cdef map_[string, VEHICLETYPES] VEHICLETYPES_INDICES
+    cdef map_[JUNCTIONTYPES_, string] JUNCTIONTYPES_NAMES
+    cdef map_[string, VEHICLETYPES_] VEHICLETYPES_INDICES
 
     cdef cppclass IntersectionRoute:
         IntersectionRoute()
@@ -91,8 +82,8 @@ cdef extern from "libiintersection.h" namespace "ii":
 
     cdef cppclass IntersectionNode(Node):
         IntersectionNode()
-        IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType) except +
-        JUNCTIONTYPES getJunctionType()
+        IntersectionNode(Point3d loc, JUNCTIONTYPES_ junctionType) except +
+        JUNCTIONTYPES_ getJunctionType()
         void addReference()
         void removeReference()
 
@@ -104,8 +95,8 @@ cdef extern from "libiintersection.h" namespace "ii":
 
     cdef cppclass ScenarioEdge(Edge):
         ScenarioEdge()
-        ScenarioEdge(nodepointer s, nodepointer e, map_[VEHICLETYPES, short int] demand) except +
-        map_[VEHICLETYPES, short int] getDemand()
+        ScenarioEdge(nodepointer s, nodepointer e, map_[VEHICLETYPES_, short int] demand) except +
+        map_[VEHICLETYPES_, short int] getDemand()
 
     cdef cppclass BezierCurve:
         BezierCurve()
@@ -194,13 +185,13 @@ cdef class PyIntersection:
         self.c_intersection = Intersection(routes)
 
     def simulate(self, int backend):
-        self.c_intersection.simulate(<BACKENDS>backend)
+        self.c_intersection.simulate(<BACKENDS_>backend)
 
     def updateMetrics(self, int backend):
-        self.c_intersection.updateMetrics(<BACKENDS>backend)
+        self.c_intersection.updateMetrics(<BACKENDS_>backend)
 
     def getMetric(self, int metric):
-        return self.c_intersection.getMetric(<METRICS>metric)
+        return self.c_intersection.getMetric(<METRICS_>metric)
 
     def getNodeXML(self):
         return self.c_intersection.getNodeXML()
@@ -347,10 +338,10 @@ cdef class PyScenarioEdge(PyEdge):
         if s is None and e is None and not demand:
             return
 
-        cdef map_[VEHICLETYPES, short int] c_demand
+        cdef map_[VEHICLETYPES_, short int] c_demand
         for key, value in demand.items():
             # Must use .at() because `VEHICLETYPES_INDICES` is const.
-            c_demand[<VEHICLETYPES>VEHICLETYPES_INDICES.at(key)] = <short int>value
+            c_demand[<VEHICLETYPES_>VEHICLETYPES_INDICES.at(key)] = <short int>value
         self.c_scenarioedge = ScenarioEdge(s.c_nodepointer, e.c_nodepointer, c_demand)
         self.c_edge = self.c_scenarioedge
 
@@ -362,9 +353,9 @@ cdef class PyScenarioEdge(PyEdge):
         return scenario_edge
 
     def getDemand(self):
-        cdef map_[VEHICLETYPES, short int] c_demand = self.c_scenarioedge.getDemand()
+        cdef map_[VEHICLETYPES_, short int] c_demand = self.c_scenarioedge.getDemand()
         cdef dict demand = {}
-        cdef map_[VEHICLETYPES, short int].iterator it = c_demand.begin()
+        cdef map_[VEHICLETYPES_, short int].iterator it = c_demand.begin()
         while it != c_demand.end():
             demand[<int>(deref(it).first)] = deref(it).first
             postincrement(it)
