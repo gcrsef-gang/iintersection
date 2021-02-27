@@ -1,0 +1,15 @@
+<scenario name="two-way-intersection">  
+    <nodes>
+        <!-- Input Nodes -->
+        <node id="1" x="0" y="0" z="0" />
+        <node id="2" x="500" y="25" z="0" />
+        <!-- Output Nodes -->
+        <node id="3" x="0" y="25" z="0" />
+        <node id="4" x="500" y="0" z="0" />
+    </nodes>
+
+    <edges>
+        <edge from="1" to="4">
+        <edge from="2" to="3">
+    </edges>
+</scenario>
