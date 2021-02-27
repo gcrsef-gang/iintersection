@@ -1,0 +1,57 @@
+<edges>
+
+    <!-- Highways (speed limit 65 m/h) -->
+    <!-- ############################# -->
+
+    <!-- S-N highway -->
+
+    <edge id="1h" from="south-entry" to="8" priority="2" numLanes="3" speed="29.0576" width="5" />
+    <edge id="2h" from="8" to="13" priority="2" numLanes="3" speed="29.0576" width="5" />
+    <edge id="3h" from="13" to="north-exit" priority="2" numLanes="3" speed="29.0576" width="5" />
+
+    <!-- N-S highway -->
+
+    <edge id="4h" from="north-entry" to="14" priority="2" numLanes="3" speed="29.0576" width="5" />
+    <edge id="5h" from="14" to="7" priority="2" numLanes="3" speed="29.0576" width="5" />
+    <edge id="6h" from="7" to="south-exit" priority="2" numLanes="3" speed="29.0576" width="5" />
+
+    <!-- W-E highway -->
+
+    <edge id="7h" from="west-entry" to="4" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="20h" from="4" to="1" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="8h" from="1" to="18" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="9h" from="18" to="15" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="10h" from="15" to="2" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="11h" from="2" to="9" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="12h" from="9" to="east-exit" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+
+    <!-- E-W highway -->
+
+    <edge id="13h" from="east-entry" to="12" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="14h" from="12" to="2" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="15h" from="2" to="10" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="16h" from="10" to="6" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="l7h" from="6" to="1" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="18h" from="1" to="3" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+    <edge id="19h" from="3" to="west-exit" priority="2" numLanes="3" speed="29.0576" spreadType="right" width="5" />
+
+    <!-- Ramps (speed limit 35 m/h) -->
+    <!-- ############################# -->
+
+    <edge id="1r" from="8" to="16" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="2r" from="16" to="9" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="3r" from="16" to="10" shape="1188.0,336.0,0 1246.5,405.6,1.5 1232.1,457.5,3.0 1143.0,510.0,6" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+
+    <edge id="4r" from="14" to="17" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="5r" from="17" to="18" shape="414.0,684.0,0 414.0,625.5,1.5 436.8,600.6,3.0 487.2,579.0,4.5 552.0,564.0,6" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="6r" from="17" to="3" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+
+    <edge id="7r" from="4" to="5" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="8r" from="5" to="7" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="9r" from="15" to="11" shape="1029.0,564.0,0 1130.7,586.5,1.5 1118.7,628.5,3.0 1088.7,673.5,4.5 1026.0,720.0,6" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="10r" from="11" to="13" shape="1026.0,720.0,0 997.2,734.4,1.5 944.7,774.3,3.0 897.9,828.3,4.5 870.0,900.0,6" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+
+    <edge id="11r" from="12" to="11" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+    <edge id="12r" from="6" to="5" shape="666.0,510.0,0 579.3,488.1,1.5 562.8,436.5,3.0 572.7,391.2,4.5 639.0,342.0,6" priority="1" numLanes="2" speed="15.6464" spreadType="right" width="5" />
+
+</edges>

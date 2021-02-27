@@ -1,4 +1,4 @@
-<scenario name="Monte Carlo">
+<scenario name="four-way-intersection">
     <nodes>
         <node id="1" x="-1" y="5" z="0" />
         <node id="2" x="1" y="5" z="0" />
