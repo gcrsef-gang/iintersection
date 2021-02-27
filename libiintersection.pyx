@@ -450,9 +450,9 @@ cdef class PyNodePointer:
 cdef class PyIntersectionNodePointer(PyNodePointer):
     cdef intersectionnodepointer c_intersectionnodepointer
 
-    def __cinit__(self, point3d=None, junctiontype=None):
-        if point3d != None:
-            self.c_intersectionnodepointer = GLOBALDATA.createIntersectionNode(Point3d(point3d), junctiontype)
+    def __cinit__(self, loc=None, junctiontype=None):
+        if loc != None:
+            self.c_intersectionnodepointer = GLOBALDATA.createIntersectionNode(Point3d(loc[0], loc[1], loc[2]), junctiontype)
         else:
             self.c_intersectionnodepointer = NULL
 

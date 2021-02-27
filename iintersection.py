@@ -33,7 +33,7 @@ MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
 MAX_PRIORITY = 10
 POSITION_MUTATION_FACTOR = 0.05
-MUTATION_CHANCE = 0.1
+MUTATION_PROB = 0.1
 
 # Changed by the bounding box of the inital input scenario
 POSITION_MUTATION_CUBE_LENGTH = 0
@@ -168,15 +168,16 @@ def _get_dominant_solution(intersection1, intersection2):
             selected = intersection2
     return selected, dominant
 
-def generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
+
+def _generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
     # Choose points from bounding box, expanded by half of the distance between them.
     half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
-    max_x = max(start_x, end_x) + half_distance
-    min_x = min(start_x, end_x) - half_distance
-    max_y = max(start_y, end_y) + half_distance
-    min_y = min(start_y, end_y) - half_distance
-    max_z = max(start_z, end_z) + half_distance
-    min_z = min(start_z, end_z) - half_distance
+    max_x = max(start_coords[0], end_coords[0]) + half_distance
+    min_x = min(start_coords[0], end_coords[0]) - half_distance
+    max_y = max(start_coords[1], end_coords[1]) + half_distance
+    min_y = min(start_coords[1], end_coords[1]) - half_distance
+    max_z = max(start_coords[2], end_coords[2]) + half_distance
+    min_z = min(start_coords[2], end_coords[2]) - half_distance
 
     points = []
     for _ in range(n_bezier_handles):
@@ -186,6 +187,7 @@ def generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
         point.append(rng.choice(np.arange(min_z, max_z + 1)))
         points.append(point)
     return points
+
 
 def generate_inital_population(input_scenario):
     """Generates the initial grid of solutions.
@@ -280,11 +282,9 @@ def generate_inital_population(input_scenario):
                 # of the edge.
                 n_bezier_handles = rng.choice(3)
                 start_coords = route_nodes[-2].getLoc()
-                start_x, start_y, start_z = start_coords
                 end_coords = route_nodes[-1].getLoc()
-                end_x, end_y, end_z = end_coords
                 if n_bezier_handles:
-                    points = generate_bezier_handles(start_coords, end_coords, n_bezier_handles)
+                    points = _generate_bezier_handles(start_coords, end_coords, n_bezier_handles)
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
@@ -495,84 +495,90 @@ def mutate(solution):
         new_nodes = []
         new_edges = []
         changed_node_ids = {}
+
         for node in nodes:
-            if rng.random() < MUTATION_CHANCE:
-                attribute = rng.choice([1, 2])
+            if rng.random() < MUTATION_PROB:
+                attribute = rng.choice(2)
                 if attribute == 1:
                     new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
-                    current_loc = node.getLoc()
-                    new_node = IntersectionNodePointer(current_loc, new_junction_type)
+                    new_node = IntersectionNodePointer(node.getLoc(), new_junction_type)
                 if attribute == 2:
                     current_loc = node.getLoc()
-                    new_loc = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in current_loc]
-                    current_junction_type = node.getJunctionType()
-                    new_node = IntersectionNodePointer(new_loc, current_junction_type)
+                    new_loc = [
+                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
+                        for coord in current_loc
+                    ]
+                    new_node = IntersectionNodePointer(new_loc, node.getJunctionType())
                 changed_node_ids[node.getID()] = new_node
                 new_nodes.append(new_node)
                 node.removeReference()
             else:
                 new_nodes.append(node)
+
+        changed_ids = list(changed_node_ids.keys())
         for edge in edges:
-            changed_ids = list(changed_node_ids.keys())
             start_node_id = edge.getStartNode().getID()
             end_node_id = edge.getEndNode().getID()
             if start_node_id in changed_ids:
                 edge.setStartNode(changed_node_ids[start_node_id])
             if end_node_id in changed_ids:
                 edge.setEndNode(changed_node_ids[end_node_id])
-            handles = edge.getShape().getHandles()
-            modified_handles = []
-            if rng.random() < MUTATION_CHANCE:
-                if len(handles) == 0:
-                    handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
-                elif len(handles) == 3:
-                    handles.pop(rng.choice(len(handles-1)))
-                else:
-                    randint = rng.choice(1)
-                    if randint == 0:
-                        handles.insert(rng.choice(len(handles)-1), generate_bezier_handles(edge.getStartNode().getLoc(), edge.getEndNode().getLoc(), 1))
-                    else:
-                        handles.pop(rng.choice(len(handles-1)))
 
-            for handle in handles:
-                if rng.random() < MUTATION_CHANCE:
-                    new_handle = [round((POSITION_MUTATION_CUBE_LENGTH*((rng.random()*2)-1))+loc) for loc in handle]
-                    modified_handles.append(new_handle)
-                else:
-                    modified_handles.append(handle)
-            edge.setHandles(modified_handles)
-            
-            if rng.random() < MUTATION_CHANCE:
+            handles = edge.getShape().getHandles()
+            if rng.random() < MUTATION_PROB:
+                # Mutation types: 0 - remove handle, 1 - change handle, 2 - add handle.
+                n_handles = len(handles)
+                if n_handles == 0:
+                    mutation_type = 2
+                elif n_handles == 1:
+                    mutation_type = rng.choice(3)
+                elif n_handles == 2:
+                    mutation_type = rng.choice(2)
+
+                if mutation_type == 0:
+                    handles.pop(rng.choice(len(handles)))
+                elif mutation_type == 1:
+                    i = rng.choice(len(handles))
+                    handles[i] = [
+                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
+                        for coord in handles[i]
+                    ]
+                elif mutation_type == 2:
+                    i = rng.choice(len(handles))
+                    handles.insert([
+                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
+                        for coord in handles[i]
+                    ])
+            edge.set_handles(handles)
+
+            if rng.random() < MUTATION_PROB:
                 current_speed_limit = edge.getSpeedLimit()
                 if current_speed_limit == 1:
                     edge.setSpeedLimit(2)
                 else:
-                    up_or_down = rng.choice([1,2])
-                    if up_or_down == 1:
+                    if rng.choice(2):
                         edge.setSpeedLimit(current_speed_limit-1)
-                    if up_or_down == 2:
+                    else:
                         edge.setSpeedLimit(current_speed_limit+1)
 
-            if rng.random() < MUTATION_CHANCE:
+            if rng.random() < MUTATION_PROB:
                 current_lane_num = edge.getNumLanes()
                 if current_lane_num == 1:
                     edge.setNumLanes(2)
                 else:
-                    up_or_down = rng.choice([1,2])
-                    if up_or_down == 1:
+                    if rng.choice(2):
                         edge.setNumLanes(current_lane_num-1)
-                    if up_or_down == 2:
+                    else:
                         edge.setNumLanes(current_lane_num+1)
 
-            if rng.random() < MUTATION_CHANCE:
+            if rng.random() < MUTATION_PROB:
                 current_priority = edge.getSpeedLimit()
                 if current_priority == 1:
                     edge.setPriority(2)
                 else:
-                    up_or_down = rng.choice([1,2])
-                    if up_or_down == 1:
+                    if rng.choice(2):
                         edge.setPriority(current_priority-1)
-                    if up_or_down == 2:
+                    else:
                         edge.setPriority(current_priority+1)
             new_edges.append(edge)
 
