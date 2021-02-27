@@ -169,7 +169,24 @@ def _get_dominant_solution(intersection1, intersection2):
     return selected, dominant
 
 
-def _generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
+def _sample_expanded_bbox(start_coords, end_coords, num_points):
+    """Chooses random points from the bounding box of two points, expanded in all directions by half
+    the distance between the points.
+
+    Parameters
+    ----------
+    start_coords: tuple of int
+        A 3d point.
+    end_coords: tuple of int
+        A 3d point.
+    num_points: int
+        The number of points to be sampled.
+
+    Returns
+    -------
+    list of tuple of int
+        A list of the sampled points.
+    """
     # Choose points from bounding box, expanded by half of the distance between them.
     half_distance = 0.5 * math.sqrt(_get_squared_distance(start_coords, end_coords))
     max_x = max(start_coords[0], end_coords[0]) + half_distance
@@ -180,13 +197,80 @@ def _generate_bezier_handles(start_coords, end_coords, n_bezier_handles):
     min_z = min(start_coords[2], end_coords[2]) - half_distance
 
     points = []
-    for _ in range(n_bezier_handles):
+    for _ in range(num_points):
         point = []
         point.append(rng.choice(np.arange(min_x, max_x + 1)))
         point.append(rng.choice(np.arange(min_y, max_y + 1)))
         point.append(rng.choice(np.arange(min_z, max_z + 1)))
         points.append(point)
     return points
+
+
+def _transform_edge(edge, repl_edge):
+    """Transforms an edge to be able to replace another edge.
+
+    Parameters
+    ----------
+    edge: IntersectionEdge
+        The "baseline" edge.
+    repl_edge: IntersectionEdge
+        The edge to be transformed to fit the start and end nodes of `edge`.
+
+    Returns
+    -------
+    IntersectionEdge
+        `repl_edge`, but transformed so that its start and end nodes are those of `edge`, but it
+        retains its shape and properties.
+    """
+    repl_start_coords = repl_edge.getStartNode().getLoc()
+    rs_x, rs_y, rs_z = repl_start_coords
+    repl_end_coords = repl_edge.getEndNode().getLoc()
+    re_x, re_y, re_z = repl_end_coords
+    edge_start_coords = edge.getStartNode().get()
+    es_x, es_y, es_z = edge_start_coords
+    edge_end_coords = edge.getEndNode()
+    ee_x, ee_y, ee_z = edge_end_coords
+
+    new_points = [repl_start_coords] + repl_edge.getShape().getHandles() + [repl_end_coords]
+
+    # Translate to origin.
+    for point in new_points:
+        for dim in range(3):
+            point[dim] -= repl_start_coords[dim]
+
+    # Rotate around origin.
+    # Z-axis rotation.
+    rotation_angle = (math.atan((es_y - ee_y) / (es_x - ee_x))   # Edge angle.
+                    -  math.atan((rs_y - re_y) / (rs_x - re_x)))  # Replacement angle.
+    for point in new_points:
+        point[0] = point[0] * math.cos(rotation_angle) - point[1] * math.sin(rotation_angle)
+        point[1] = point[0] * math.sin(rotation_angle) - point[1] * math.cos(rotation_angle)
+    # Y-axis rotation.
+    rotation_angle = (math.atan((es_z - ee_z) / (es_x - ee_x))
+                    - math.atan((rs_z - re_z) / (rs_x - re_x)))
+    for point in new_points:
+        point[0] = point[0] * math.cos(rotation_angle) - point[2] * math.sin(rotation_angle)
+        point[2] = point[0] * math.sin(rotation_angle) - point[2] * math.cos(rotation_angle)
+
+    # Scale.
+    repl_length = math.sqrt(_get_squared_distance(repl_start_coords, repl_end_coords))
+    edge_length = math.sqrt(_get_squared_distance(edge_start_coords, edge_end_coords))
+    scale_factor = edge_length / repl_length
+    for point in new_points:
+        for dim in range(3):
+            point[dim] *= scale_factor
+
+    # Translate from origin.
+    for point in new_points:
+        for dim in range(3):
+            point[dim] += edge_start_coords[dim]
+
+    start_node = edge.getStartNode()
+    end_node = edge.getEndNode()
+    bezier_curve = BezierCurve(start_node, end_node, new_points[1:-1])
+    new_edge = IntersectionEdge(start_node, end_node, bezier_curve, repl_edge.getNumLanes(),
+                                repl_edge.getSpeedLimit(), repl_edge.getPriority())
+    return new_edge
 
 
 def generate_inital_population(input_scenario):
@@ -280,11 +364,11 @@ def generate_inital_population(input_scenario):
 
                 # Create bezier curve using random points inside bounding box of start and end nodes
                 # of the edge.
-                n_bezier_handles = rng.choice(3)
+                num_bezier_handles = rng.choice(3)
                 start_coords = route_nodes[-2].getLoc()
                 end_coords = route_nodes[-1].getLoc()
-                if n_bezier_handles:
-                    points = _generate_bezier_handles(start_coords, end_coords, n_bezier_handles)
+                if num_bezier_handles:
+                    points = _sample_expanded_bbox(start_coords, end_coords, num_bezier_handles)
                 else:
                     points = []
                 bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
@@ -413,56 +497,7 @@ def crossover(parents, input_scenario):
             # Replace edges in the route with other ones randomly.
             if rng.random() < EDGE_REPLACEMENT_PROB:
                 repl_edge = rng.choice([e for e in all_edges if e != edge])
-                repl_start_coords = repl_edge.getStartNode().getLoc()
-                rs_x, rs_y, rs_z = repl_start_coords
-                repl_end_coords = repl_edge.getEndNode().getLoc()
-                re_x, re_y, re_z = repl_end_coords
-                parent_start_coords = edge.getStartNode().get()
-                ps_x, ps_y, ps_z = parent_start_coords
-                parent_end_coords = edge.getEndNode()
-                pe_x, pe_y, pe_z = parent_end_coords()
-
-                new_points = [repl_start_coords] + repl_edge.getShape().getHandles() + [repl_end_coords]
-
-                # Translate to origin.
-                for point in new_points:
-                    for dim in range(3):
-                        point[dim] -= repl_start_coords[dim]
-
-                # Rotate around origin.
-                # Z-axis rotation.
-                rotation_angle = (math.atan((ps_y - pe_y) / (ps_x - pe_x))   # Parent angle.
-                               -  math.atan((rs_y - re_y) / (rs_x - re_x)))  # Replacement angle.
-                for point in new_points:
-                    point[0] = point[0] * math.cos(rotation_angle) - point[1] * math.sin(rotation_angle)
-                    point[1] = point[0] * math.sin(rotation_angle) - point[1] * math.cos(rotation_angle)
-                # Y-axis rotation.
-                rotation_angle = (math.atan((ps_z - pe_z) / (ps_x - pe_x))
-                                - math.atan((rs_z - re_z) / (rs_x - re_x)))
-                for point in new_points:
-                    point[0] = point[0] * math.cos(rotation_angle) - point[2] * math.sin(rotation_angle)
-                    point[2] = point[0] * math.sin(rotation_angle) - point[2] * math.cos(rotation_angle)
-
-                # Scale.
-                repl_length = math.sqrt(_get_squared_distance(repl_start_coords, repl_end_coords))
-                parent_length = math.sqrt(_get_squared_distance(parent_start_coords, parent_end_coords))
-                scale_factor = parent_length / repl_length
-                for point in new_points:
-                    for dim in range(3):
-                        point[dim] *= scale_factor
-
-                # Translate from origin.
-                for point in new_points:
-                    for dim in range(3):
-                        point[dim] += parent_start_coords[dim]
-
-                start_node = edge.getStartNode()
-                end_node = edge.getEndNode()
-                bezier_curve = BezierCurve(start_node, end_node, new_points[1:-1])
-                new_edge = IntersectionEdge(start_node, end_node, bezier_curve,
-                                            repl_edge.getNumLanes(), repl_edge.getSpeedLimit(),
-                                            repl_edge.getPriority())
-                child_route_edges.append(new_edge)
+                child_route_edges.append(_transform_edge(edge, repl_edge))
             else:
                 child_route_edges.append(edge)
 
@@ -489,14 +524,17 @@ def mutate(solution):
     solution: Intersection
         An intersection. Edited in-place.
     """
-    for route in solution.getRoutes():
+    routes = solution.getRoutes()
+    for route in routes:
         nodes = route.getNodeList()[1:-1]
         edges = route.getEdgeList()
         new_nodes = []
         new_edges = []
         changed_node_ids = {}
 
+        # Mutating nodes.
         for node in nodes:
+
             if rng.random() < MUTATION_PROB:
                 attribute = rng.choice(2)
                 if attribute == 1:
@@ -515,8 +553,11 @@ def mutate(solution):
             else:
                 new_nodes.append(node)
 
+        # Mutating edges.
         changed_ids = list(changed_node_ids.keys())
-        for edge in edges:
+        for e, edge in enumerate(edges):
+
+            # Update edges according to mutated nodes.
             start_node_id = edge.getStartNode().getID()
             end_node_id = edge.getEndNode().getID()
             if start_node_id in changed_ids:
@@ -524,15 +565,34 @@ def mutate(solution):
             if end_node_id in changed_ids:
                 edge.setEndNode(changed_node_ids[end_node_id])
 
+            if rng.random() < MUTATION_PROB:
+                # Adding a new node to the route:
+                # replacing this edge with two new edges and one new node.
+                if rng.choice(2):
+                    # Create new node.
+                    loc = _sample_expanded_bbox(edge.getStartNode().getLoc(),
+                                                edge.getEndNode.getLoc(), 1)[0]
+                    junction_type = rng.choice(JUNCTIONTYPES.values())
+                    new_node = IntersectionNodePointer(loc, junction_type)
+                elif rng.choice(2):
+                    # Choose existing node.
+                    new_node = rng.choice([node for route in routes for node in route.getNodeList()])
+                new_nodes.insert(new_nodes.index(edge.getEndNode()), new_node)
+                # Create new edges.
+                for _ in range(2):
+                    repl_edge = rng.choice([edge for route in routes for edge in route.getEdgeList()])
+                    new_edges.insert(e, _transform_edge(edge, repl_edge))
+                continue
+
             handles = edge.getShape().getHandles()
             if rng.random() < MUTATION_PROB:
                 # Mutation types: 0 - remove handle, 1 - change handle, 2 - add handle.
-                n_handles = len(handles)
-                if n_handles == 0:
+                num_handles = len(handles)
+                if num_handles == 0:
                     mutation_type = 2
-                elif n_handles == 1:
+                elif num_handles == 1:
                     mutation_type = rng.choice(3)
-                elif n_handles == 2:
+                elif num_handles == 2:
                     mutation_type = rng.choice(2)
 
                 if mutation_type == 0:
@@ -545,10 +605,8 @@ def mutate(solution):
                     ]
                 elif mutation_type == 2:
                     i = rng.choice(len(handles))
-                    handles.insert([
-                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
-                        for coord in handles[i]
-                    ])
+                    handles.insert(_sample_expanded_bbox(edge.getStartNode().getLoc(),
+                                                            edge.getEndNode.getLoc(), 1)[0])
             edge.set_handles(handles)
 
             if rng.random() < MUTATION_PROB:
