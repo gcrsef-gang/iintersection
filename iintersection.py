@@ -540,7 +540,7 @@ def mutate(solution):
                     modified_handles.append(new_handle)
                 else:
                     modified_handles.append(handle)
-            edge.updateHandles(modified_handles)
+            edge.setHandles(modified_handles)
             
             if rng.random() < MUTATION_CHANCE:
                 current_speed_limit = edge.getSpeedLimit()

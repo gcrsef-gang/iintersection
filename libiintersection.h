@@ -16,6 +16,7 @@
 
 #ifdef SUMO_LIB
 #include <netload/NLBuilder.h>
+#include <microsim/MSNet.h>
 #include <utils/options/OptionsIO.h>
 #include <utils/common/SystemFrame.h>
 #include <utils/xml/XMLSubSys.h>
@@ -54,17 +55,17 @@ class IntersectionRoute;
 // Tracking current max node ID
 static unsigned short int CURRENT_UUID_MAX = 0;
 
-
 // Global constants for the evaluation backends
+static const short int BEZIER_SAMPLES = 500;
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 
 enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+const std::map<std::string, VEHICLETYPES> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
 
-enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
-const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::ZIPPER, "zipper"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
+enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};
+const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 
 // Intersection evaluation function type
@@ -122,7 +123,7 @@ public:
     void performSim(const std::size_t time) {};
     void updateIntersectionEmissions(Intersection*) {};
     void updateIntersectionSafety(Intersection*) {};
-    void updateIntersectionEfficiency(Intersection*) {};
+    void updateIntersectionEfficiency(Intersection*);
 
 private:
     SumoInterface() {}
@@ -130,13 +131,16 @@ private:
 };
 
 
-// SumoInterface SumoInterface::instance;
+// void SumoInterface::updateIntersectionEfficiency(Intersection* int_) {
+//     this->net->getTravelTime();
+// }
 
 
 class Point3d
 {
 public:
-    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {};
+    Point3d() {}
+    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {}
     Point3d(std::vector<short int> coords) : x_(coords[0]), y_(coords[1]), z_(coords[2]) {}
 
     short int x() {return this->x_;}
@@ -152,9 +156,12 @@ class BezierCurve
 {
 public:
     BezierCurve() {}
-    BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e), handles(handles) {}
+    BezierCurve(IntersectionNode* s, IntersectionNode* e, std::vector<Point3d> handles) : s(s), e(e), handles(handles) {
+        assert((this->handles.size() == 1 || this->handles.size() == 2));
+    }
 
-    std::vector<Point3d> rasterize();
+    std::vector<Point3d> rasterize(int resolution);
+
     IntersectionNode* getStartNode() const {return this->s;}
     IntersectionNode* getEndNode() const {return this->e;}
     std::vector<Point3d> getHandles() const {return this->handles;}
@@ -162,6 +169,8 @@ public:
     void setHandles(std::vector<Point3d> handles_) {this->handles = handles_;}
 
 private:
+    Point3d evaluateParametric(double t);
+
     void setStartNode(IntersectionNode*);
     void setEndNode(IntersectionNode*);
     IntersectionNode* s;
@@ -175,13 +184,16 @@ friend class IntersectionEdge;
 class Node
 {
 public:
+    Node() {}
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
-    unsigned short int getID() {return this->UUID;}
+    unsigned short int getID() const {return this->UUID;}
 
 private:
     unsigned short int UUID;
     Point3d loc;
+
+friend bool operator==(const Node& n1, const Node& n2) {return n1.getID() == n2.getID();}
 };
 
 
@@ -191,11 +203,12 @@ typedef Node ScenarioNode;
 class IntersectionNode : public Node
 {
 public:
-    JUNCTIONTYPES getJunctionType() {return this->junctionType;}
+    JUNCTIONTYPES getJunctionType() const {return this->junctionType;}
     void addReference() {this->referenceCount++;}
-    void RemoveReference() {if(referenceCount == 1){GLOBALDATA->removeIntersectionNode(this);} 
-        else this->referenceCount--;}
+    void removeReference();
+
 private:
+    IntersectionNode() {}
     IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
         : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
@@ -208,6 +221,7 @@ friend class DataManager;
 class Edge
 {
 public:
+    Edge() {}
     Edge(Node* s, Node* e) : s(s), e(e) {};
     Node* getStartNode() const {return s;}
     Node* getEndNode() const {return e;}
@@ -221,6 +235,7 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
+    IntersectionEdge() {}
     IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
@@ -231,7 +246,7 @@ public:
     void setStartNode(IntersectionNode*);
     void setEndNode(IntersectionNode*);
 
-    void updateHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
+    void setHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
     void setNumLanes(short int numLanes_) {this->numlanes = numLanes_;}
     void setSpeedLimit(short int speedLimit_) {this->speedlimit = speedLimit_;}
     void setPriority(short int priority_) {this->priority = priority_;}
@@ -247,6 +262,7 @@ private:
 class ScenarioEdge : public Edge
 {
 public:
+    ScenarioEdge() {}
     ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
 
     std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
@@ -259,6 +275,7 @@ private:
 class IntersectionRoute
 {
 public:
+    IntersectionRoute() {}
     IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
         : nodeList(nodeList), edgeList(edgeList) {}
 
@@ -276,6 +293,7 @@ private:
 class Intersection
 {
 public:
+    Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
 
     void simulate(BACKENDS) const;
@@ -308,6 +326,7 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 class IntersectionScenario
 {
 public:
+    IntersectionScenario() {}
     IntersectionScenario(std::vector<ScenarioNode> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
     IntersectionScenario(std::string xmlFilePath);
     std::vector<ScenarioNode> getNodes() const {return this->nodes;}
@@ -341,10 +360,82 @@ IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES
 }
 
 
-// void DataManager::removeIntersectionNode(IntersectionNode* node)
-// {
-//     intersectionNodeData.erase(std::remove(intersectionNodeData.begin(), intersectionNodeData.end(), *node), intersectionNodeData.end());
-// }
+std::vector<Point3d> BezierCurve::rasterize(int resolution)
+{
+    resolution--;
+    std::vector<Point3d> points;
+
+    for (int i = 0; i <= resolution; i++)
+    {
+        double t = i / static_cast<double>(resolution);
+        points.push_back(this->evaluateParametric(t));
+    }
+
+    return points;
+}
+
+
+unsigned int Choose(unsigned int n, unsigned int k)
+{
+    if (k > n) return 0;
+    if (k * 2 > n) k = n-k;
+    if (k == 0) return 1;
+
+    unsigned int result = n;
+    for (int i = 2; i <= k; ++i)
+    {
+        result *= (n - i + 1);
+        result /= i;
+    }
+
+    return result;
+}
+
+
+Point3d BezierCurve::evaluateParametric(double t)
+{
+    double x = 0, y = 0, z = 0;
+    int n = this->handles.size() + 1;
+
+    for (int i = 0; i <= n; i++)
+    {
+        Point3d pnt(-1, -1, -1);
+    
+        // Assign pnt to the appropriate handle
+        if (i == 0) {pnt = *s->getLoc();}
+        else if (i == handles.size() + 1) {pnt = *e->getLoc();}
+        else {pnt = handles[i - 1];}
+
+        // determine next product in summation
+        double bin = Choose(n, i) * std::pow((1.0 - t), (n - i)) * std::pow(t, i);
+
+        // Add to current values
+        x += bin * pnt.x();
+        y += bin * pnt.y();
+        z += bin * pnt.z();
+    }
+
+    return Point3d(x, y, z);
+}
+
+
+void DataManager::removeIntersectionNode(IntersectionNode* node)
+{
+    intersectionNodeData.erase(std::remove(intersectionNodeData.begin(), intersectionNodeData.end(), *node), intersectionNodeData.end());
+}
+
+
+void IntersectionNode::removeReference()
+{
+    if (referenceCount == 1)
+    {
+        GLOBALDATA->removeIntersectionNode(this);
+    }
+    else
+    {
+        this->referenceCount--;
+    }
+}
 
 
 IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
@@ -389,7 +480,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
             // If attribute contains demand data.
             if (pos != std::string::npos)
             {
-                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES.at(attrName.substr(0, pos));
+                VEHICLETYPES vehicleType = VEHICLETYPES_INDICES.at(attrName.substr(0, pos));
                 short int vehicleDemand = attr.as_int();
                 demand[vehicleType] = vehicleDemand;
             }
@@ -419,6 +510,13 @@ void Intersection::updateMetrics(BACKENDS back)
     }
 }
 
+
+
+/**
+ * Sumo XML writing methods. Utilizes PUGIXML to convert
+ * Intersection to Sumo-compatible XML files and read Sumo
+ * scenario files into IntersectionScenarios
+ */
 
 std::string Intersection::getNodeXML() const
 {
@@ -459,16 +557,15 @@ std::string Intersection::getEdgeXML() const
     // Node IDs as they will be in the node file generated by getNodeXML.
     std::map<IntersectionNode*, int> sumoNodeIDs;
     std::vector<IntersectionEdge> edges;
+
     for (IntersectionRoute route : routes)
     {
-        for (IntersectionEdge edge : route.getEdgeList())
-        {
-            edges.push_back(edge);
-        }
+        edges.insert(edges.end(), route.getEdgeList().begin(), route.getEdgeList().end());
         std::vector<IntersectionNode*> routeNodes = route.getNodeList();
+
         for (int i = 0; i < routeNodes.size(); i++)
         {
-            sumoNodeIDs.insert(std::pair<IntersectionNode*, int>(routeNodes[i], i));
+            sumoNodeIDs[routeNodes[i]] = i;
         }
     }
 
@@ -482,7 +579,22 @@ std::string Intersection::getEdgeXML() const
         edgeTag << "to=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getEndNode())] << "\" ";
         edgeTag << "priority=\"" << edges[i].getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i].getNumLanes() << "\" ";
-        edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\"/>\n";
+        edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\" ";
+
+        edgeTag << "shape=\"";
+    
+        std::vector<Point3d> sampledPoints = edges[i].getShape().rasterize(BEZIER_SAMPLES);
+
+        for (int p = 0; p < sampledPoints.size(); p++)
+        {
+            edgeTag << std::to_string(sampledPoints[p].x()) << ","
+                    << std::to_string(sampledPoints[p].y()) << ","
+                    << std::to_string(sampledPoints[p].z());
+
+            if (p != sampledPoints.size() - 1) {edgeTag << " ";}
+        }
+
+        edgeTag << "\"/>\n";
 
         xmlOutput += edgeTag.str();
         edgeTag.clear();
