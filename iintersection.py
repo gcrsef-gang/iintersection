@@ -206,29 +206,30 @@ def _sample_expanded_bbox(start_coords, end_coords, num_points):
     return points
 
 
-def _transform_edge(edge, repl_edge):
+def _transform_edge(start_node, end_node, repl_edge):
     """Transforms an edge to be able to replace another edge.
 
     Parameters
     ----------
-    edge: IntersectionEdge
-        The "baseline" edge.
+    start_node: IntersectionNode
+        A node.
+    end_node: IntersectionNode
+        A node.
     repl_edge: IntersectionEdge
-        The edge to be transformed to fit the start and end nodes of `edge`.
+        The edge to be transformed to fit the start and end nodes.
 
     Returns
     -------
     IntersectionEdge
-        `repl_edge`, but transformed so that its start and end nodes are those of `edge`, but it
-        retains its shape and properties.
+        `repl_edge`, but transformed to fit specified start and end nodes.
     """
     repl_start_coords = repl_edge.getStartNode().getLoc()
     rs_x, rs_y, rs_z = repl_start_coords
     repl_end_coords = repl_edge.getEndNode().getLoc()
     re_x, re_y, re_z = repl_end_coords
-    edge_start_coords = edge.getStartNode().get()
+    edge_start_coords = start_node.getLoc()
     es_x, es_y, es_z = edge_start_coords
-    edge_end_coords = edge.getEndNode()
+    edge_end_coords = end_node.getLoc()
     ee_x, ee_y, ee_z = edge_end_coords
 
     new_points = [repl_start_coords] + repl_edge.getShape().getHandles() + [repl_end_coords]
@@ -265,8 +266,6 @@ def _transform_edge(edge, repl_edge):
         for dim in range(3):
             point[dim] += edge_start_coords[dim]
 
-    start_node = edge.getStartNode()
-    end_node = edge.getEndNode()
     bezier_curve = BezierCurve(start_node, end_node, new_points[1:-1])
     new_edge = IntersectionEdge(start_node, end_node, bezier_curve, repl_edge.getNumLanes(),
                                 repl_edge.getSpeedLimit(), repl_edge.getPriority())
@@ -484,7 +483,7 @@ def crossover(parents, input_scenario):
     all_edges = set()
     for parent in parents:
         for route in parent.getRoutes():
-            for edge in route.getEdgesList():
+            for edge in route.getEdgeList():
                 all_edges.add(edge)
 
     child_routes = []
@@ -493,11 +492,12 @@ def crossover(parents, input_scenario):
         parent_route = _get_route_from_scenario_edge(parents[rng.choice(2)], scenario_edge)
 
         child_route_edges = []
-        for edge in parent_route.getEdgesList():
+        for edge in parent_route.getEdgeList():
             # Replace edges in the route with other ones randomly.
             if rng.random() < EDGE_REPLACEMENT_PROB:
                 repl_edge = rng.choice([e for e in all_edges if e != edge])
-                child_route_edges.append(_transform_edge(edge, repl_edge))
+                child_route_edges.append(_transform_edge(edge.getStartNode(),
+                                                         edge.getEndNode(), repl_edge))
             else:
                 child_route_edges.append(edge)
 
@@ -526,44 +526,13 @@ def mutate(solution):
     """
     routes = solution.getRoutes()
     for route in routes:
-        nodes = route.getNodeList()[1:-1]
+        nodes = route.getNodeList()
         edges = route.getEdgeList()
-        new_nodes = []
+        new_nodes = nodes[:]
         new_edges = []
-        changed_node_ids = {}
-
-        # Mutating nodes.
-        for node in nodes:
-
-            if rng.random() < MUTATION_PROB:
-                attribute = rng.choice(2)
-                if attribute == 1:
-                    new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
-                    new_node = IntersectionNodePointer(node.getLoc(), new_junction_type)
-                if attribute == 2:
-                    current_loc = node.getLoc()
-                    new_loc = [
-                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
-                        for coord in current_loc
-                    ]
-                    new_node = IntersectionNodePointer(new_loc, node.getJunctionType())
-                changed_node_ids[node.getID()] = new_node
-                new_nodes.append(new_node)
-                node.removeReference()
-            else:
-                new_nodes.append(node)
 
         # Mutating edges.
-        changed_ids = list(changed_node_ids.keys())
         for e, edge in enumerate(edges):
-
-            # Update edges according to mutated nodes.
-            start_node_id = edge.getStartNode().getID()
-            end_node_id = edge.getEndNode().getID()
-            if start_node_id in changed_ids:
-                edge.setStartNode(changed_node_ids[start_node_id])
-            if end_node_id in changed_ids:
-                edge.setEndNode(changed_node_ids[end_node_id])
 
             if rng.random() < MUTATION_PROB:
                 # Adding a new node to the route:
@@ -576,11 +545,11 @@ def mutate(solution):
                     new_node = IntersectionNodePointer(loc, junction_type)
                 elif rng.choice(2):
                     # Choose existing node.
-                    new_node = rng.choice([node for route in routes for node in route.getNodeList()])
+                    new_node = rng.choice([node for route_ in routes for node in route_.getNodesList()])
                 new_nodes.insert(new_nodes.index(edge.getEndNode()), new_node)
                 # Create new edges.
                 for _ in range(2):
-                    repl_edge = rng.choice([edge for route in routes for edge in route.getEdgeList()])
+                    repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
                     new_edges.insert(e, _transform_edge(edge, repl_edge))
                 continue
 
@@ -600,7 +569,7 @@ def mutate(solution):
                 elif mutation_type == 1:
                     i = rng.choice(len(handles))
                     handles[i] = [
-                        round((POSITION_MUTATION_CUBE_LENGTH * ((rng.random() * 0.5) - 1)) + coord)
+                        round((POSITION_MUTATION_CUBE_LENGTH * (rng.random() - 0.5)) + coord)
                         for coord in handles[i]
                     ]
                 elif mutation_type == 2:
@@ -615,9 +584,9 @@ def mutate(solution):
                     edge.setSpeedLimit(2)
                 else:
                     if rng.choice(2):
-                        edge.setSpeedLimit(current_speed_limit-1)
+                        edge.setSpeedLimit(current_speed_limit - 1)
                     else:
-                        edge.setSpeedLimit(current_speed_limit+1)
+                        edge.setSpeedLimit(current_speed_limit + 1)
 
             if rng.random() < MUTATION_PROB:
                 current_lane_num = edge.getNumLanes()
@@ -625,9 +594,9 @@ def mutate(solution):
                     edge.setNumLanes(2)
                 else:
                     if rng.choice(2):
-                        edge.setNumLanes(current_lane_num-1)
+                        edge.setNumLanes(current_lane_num - 1)
                     else:
-                        edge.setNumLanes(current_lane_num+1)
+                        edge.setNumLanes(current_lane_num + 1)
 
             if rng.random() < MUTATION_PROB:
                 current_priority = edge.getSpeedLimit()
@@ -635,10 +604,93 @@ def mutate(solution):
                     edge.setPriority(2)
                 else:
                     if rng.choice(2):
-                        edge.setPriority(current_priority-1)
+                        edge.setPriority(current_priority - 1)
                     else:
-                        edge.setPriority(current_priority+1)
+                        edge.setPriority(current_priority + 1)
             new_edges.append(edge)
+
+        # Mutating nodes.
+        for node in nodes:
+
+            if rng.random() < MUTATION_PROB:
+                # Deleting a node from the route:
+                # Replacing it and the edges that go into and out of it with a single edge.
+
+                # Remove the in/out edges for the node.
+                parents = []  # As defined in directed graphs.
+                children = []  # ^
+                to_remove = []
+                for edge in new_edges:
+                    if edge.getStartNode() == node:
+                        to_remove.append(edge)
+                        children.append(edge.getEndNode())
+                    elif edge.getEndNode() == node:
+                        to_remove.append(edge)
+                        parents.append(edge.getStartNode())
+                # Add replacement edges for disconnected neighbors.
+                new_edges = [edge for edge in new_edges if edge not in to_remove]
+                for child in children:
+                    for parent in parents:
+                        repl_edge = rng.chocie([edge for route_ in routes for edge in route_])
+                        new_edges.append(_transform_edge(parent, child, repl_edge))
+                new_nodes.remove(node)                        
+
+                # Remove this node from all other routes in the intersection.
+                for route_ in routes:
+                    if route_ == route:
+                        continue
+                    # Detect the node.
+                    node_present = False
+                    nodes_ = route_.getNodeList()
+                    for node_ in nodes_:
+                        if node_ == node:
+                            node_present = True
+                            break
+                    if not node_present:
+                        continue
+                    # Remove the node.
+                    route_.setNodeList([node_ for node_ in nodes_ if node_ != node])
+
+                    # Remove the in/out edges for the node.
+                    parents = []  # As defined in directed graphs.
+                    children = []  # ^
+                    to_remove = []
+                    edges_ = route_.getEdgeList()
+                    for edge in edges_:
+                        if edge.getStartNode() == node:
+                            to_remove.append(edge)
+                            children.append(edge.getEndNode())
+                        elif edge.getEndNode() == node:
+                            to_remove.append(edge)
+                            parents.append(edge.getStartNode())
+                    new_edges_route_ = [edge for edge in edges_ if edge not in to_remove]
+                    # Add replacement edges for disconnected neighbors.
+                    for child in children:
+                        for parent in parents:
+                            repl_edge = rng.choice([edge for route__ in routes for edge in route__])
+                            new_edges_route_.append(_transform_edge(parent, child, repl_edge))
+                    route_.setEdgeList(new_edges_route_)
+
+                node.removeReference()
+                continue
+
+            if rng.random() < MUTATION_PROB:
+                attribute = rng.choice(2)
+                if attribute == 1:
+                    new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
+                    new_node = IntersectionNodePointer(node.getLoc(), new_junction_type)
+                if attribute == 2:
+                    current_loc = node.getLoc()
+                    new_loc = [
+                        round((POSITION_MUTATION_CUBE_LENGTH * (rng.random() - 0.5)) + coord)
+                        for coord in current_loc
+                    ]
+                    new_node = IntersectionNodePointer(new_loc, node.getJunctionType())
+                # Replace `node` with `new_node`
+                for n, node_ in enumerate(new_nodes):
+                    if node_ == node:
+                        new_nodes[n] = new_node
+                node.removeReference()
 
         # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
