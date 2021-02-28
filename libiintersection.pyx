@@ -398,13 +398,11 @@ cdef class PyIntersectionEdge(PyEdge):
     def getPriority(self):
         return self.c_intersectionedge.getPriority()
 
-    def setStartNode(self, intersectionnode_pointer):
-        cdef PyIntersectionNodePointer intersection_node_pointer = intersectionnode_pointer
-        self.c_intersectionedge.setStartNode(intersection_node_pointer.c_intersectionnodepointer)
+    def setStartNode(self, PyIntersectionNodePointer intersectionnode_pointer):
+        self.c_intersectionedge.setStartNode(intersectionnode_pointer.c_intersectionnodepointer)
 
-    def setEndNode(self, intersectionnode_pointer):
-        cdef PyIntersectionNodePointer intersection_node_pointer = intersectionnode_pointer
-        self.c_intersectionedge.setEndNode(intersection_node_pointer.c_intersectionnodepointer)
+    def setEndNode(self, PyIntersectionNodePointer intersectionnode_pointer):
+        self.c_intersectionedge.setEndNode(intersectionnode_pointer.c_intersectionnodepointer)
 
     def setHandles(self, handles):
         cdef vector[Point3d] cyhandles
@@ -420,6 +418,12 @@ cdef class PyIntersectionEdge(PyEdge):
 
     def setPriority(self, priority):
         self.c_intersectionedge.setPriority(priority)
+
+    def __eq__(self, other):
+        return (self.getShape().getHandles() == other.getShape().getHandles()
+            and self.getNumLanes() == other.getNumLanes()
+            and self.getSpeedLimit() == other.getSpeedLimit()
+            and self.getPriority() == other.getPriority())
 
 
 cdef class PyNodePointer:
@@ -474,6 +478,9 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
     def __dealloc__(self):
         if self.c_intersectionnodepointer is not NULL:
             del self.c_intersectionnodepointer
+
+    def __eq__(self, other):
+        return self.getID() == other.getID()
 
 
 cdef class PyIntersectionRoutePointer():
