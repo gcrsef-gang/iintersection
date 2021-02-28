@@ -526,7 +526,7 @@ def mutate(solution):
     """
     routes = solution.getRoutes()
     for route in routes:
-        nodes = route.getNodeList()
+        nodes = route.getNodeList()[1:-1]
         edges = route.getEdgeList()
         new_nodes = nodes[:]
         new_edges = []
@@ -550,11 +550,14 @@ def mutate(solution):
                 # Create new edges.
                 for _ in range(2):
                     repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
-                    new_edges.insert(e, _transform_edge(edge, repl_edge))
+                    new_edges.insert(e, _transform_edge(edge.getStartNode(),
+                                                        edge.getEndNode(), repl_edge))
                 continue
 
+            mutated = False
             handles = edge.getShape().getHandles()
             if rng.random() < MUTATION_PROB:
+                mutated = True
                 # Mutation types: 0 - remove handle, 1 - change handle, 2 - add handle.
                 num_handles = len(handles)
                 if num_handles == 0:
@@ -579,6 +582,7 @@ def mutate(solution):
             edge.set_handles(handles)
 
             if rng.random() < MUTATION_PROB:
+                mutated = True
                 current_speed_limit = edge.getSpeedLimit()
                 if current_speed_limit == 1:
                     edge.setSpeedLimit(2)
@@ -589,6 +593,7 @@ def mutate(solution):
                         edge.setSpeedLimit(current_speed_limit + 1)
 
             if rng.random() < MUTATION_PROB:
+                mutated = True
                 current_lane_num = edge.getNumLanes()
                 if current_lane_num == 1:
                     edge.setNumLanes(2)
@@ -599,6 +604,7 @@ def mutate(solution):
                         edge.setNumLanes(current_lane_num + 1)
 
             if rng.random() < MUTATION_PROB:
+                mutated = True
                 current_priority = edge.getSpeedLimit()
                 if current_priority == 1:
                     edge.setPriority(2)
@@ -607,6 +613,20 @@ def mutate(solution):
                         edge.setPriority(current_priority - 1)
                     else:
                         edge.setPriority(current_priority + 1)
+
+            # Apply mutation to all instances of this edge in the intersection.
+            original_edge = route.getEdgeList()[e]
+            for route_ in routes:
+                edge_index = -1
+                edges_ = route_.getEdgeList()
+                for e_, edge_ in enumerate(edges_):
+                    if edge_ == original_edge:
+                        edge_index = e_
+                        break
+                if edge_index != -1:
+                    edges_[edge_index] = edge
+                route_.setEdgeList(edges_)
+
             new_edges.append(edge)
 
         # Mutating nodes.
