@@ -57,61 +57,25 @@ class IntersectionRoute;
 static unsigned short int CURRENT_UUID_MAX = 0;
 
 
-/**
- * Global constants that do not affect the output of the algorithm (or do so in a very minimal way).
- * These can be set arbitrarily, or changed for the sake of performance
- */
 static const short int BEZIER_SAMPLES = 500;
-
-
-/**
- * Global constants that serve as C++ hyperparameters. These will directly affect the algorithm's output.
- */
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 
 
-enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
-enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
+namespace METRICS {enum METRICS_ {SAFETY, EMISSIONS, EFFICIENCY};}
+namespace BACKENDS {enum BACKENDS_ {SUMO, VISSIM, CITYFLOW};}
+namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK, IDK};}
+namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
 
-enum class VEHICLETYPES {CAR, TRUCK, IDK};
-const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+const std::map<JUNCTIONTYPES::JUNCTIONTYPES_, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
-enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
-const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::ZIPPER, "zipper"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
-std::map<JUNCTIONTYPES, SumoXMLNodeType> SumoJunctionMap = {
+std::map<JUNCTIONTYPES::JUNCTIONTYPES_, SumoXMLNodeType> SumoJunctionMap = {
     // Fill this in later pls
 };
 
 // Intersection evaluation function type
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
-
-
-/**
- * @brief A factory and global data storage container.
- * Follows the singleton design pattern, and can only be instantiated once.
- */
-class DataManager
-{
-public:
-    DataManager(const DataManager&) = delete;
-    DataManager& operator= (const DataManager&) = delete;
-    static DataManager* Get();
-
-    IntersectionNode* createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType);
-    void removeIntersectionNode(IntersectionNode* intersectionNode);
-
-private:
-    DataManager() {}
-    std::list<IntersectionNode> intersectionNodeData;
-};
-
-
-/**
- * Initiate single global instance of the DataManager class
- * in order to keep all nodes in global memory
- */
-static DataManager* GLOBALDATA = DataManager::Get();
 
 
 /**
@@ -172,15 +136,13 @@ private:
 
     MSEdgeControl* buildSumoEdges(std::vector<IntersectionEdge*>, std::vector<IntersectionNode*>, MSJunctionControl*);
     MSEdge* buildSumoEdge(IntersectionEdge*);
+
     std::vector<MSLane> buildSumoLanes(IntersectionEdge*);
-    
+
     MSJunctionControl* buildSumoJunctions(std::vector<IntersectionNode*>);
     MSJunction* buildSumoJunction(IntersectionNode*);
 
-
-    // Relate Node*s to the MSJunction*s stored in GLOBALDATA
     std::map<Node*, MSJunction*> nodeJunctionMap;
-
     std::vector<MSJunction> junctions;
     std::vector<MSEdge> edges;
 };
@@ -218,6 +180,7 @@ friend class IntersectionEdge;
 class Node
 {
 public:
+    // Node() {}
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() const {return this->UUID;}
@@ -226,7 +189,7 @@ private:
     unsigned short int UUID;
     Point3d loc;
 
-friend bool operator==(const Node& n1, const Node& n2) {return n1.getID() == n2.getID();};
+friend bool operator==(const Node& n1, const Node& n2) {return n1.getID() == n2.getID();}
 };
 
 
@@ -236,17 +199,17 @@ typedef Node ScenarioNode;
 class IntersectionNode : public Node
 {
 public:
-    JUNCTIONTYPES getJunctionType() const {return this->junctionType;}
+    JUNCTIONTYPES::JUNCTIONTYPES_ getJunctionType() const {return this->junctionType;}
     void addReference() {this->referenceCount++;}
-    void removeReference();
+    bool removeReference();
 
 private:
-    IntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
+    // IntersectionNode() {}
+    IntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType)
         : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
-    JUNCTIONTYPES junctionType; 
+    JUNCTIONTYPES::JUNCTIONTYPES_ junctionType; 
     unsigned short int referenceCount;
-friend class DataManager;
 };
 
 
@@ -267,7 +230,8 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
+    IntersectionEdge() {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
     short int getNumLanes() const {return this->numlanes;}
@@ -301,18 +265,20 @@ private:
 class ScenarioEdge : public Edge
 {
 public:
-    ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES, short int> demand) : Edge(s, e), demand(demand) {}
+    ScenarioEdge() {}
+    ScenarioEdge(ScenarioNode* s, ScenarioNode* e, std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand) : Edge(s, e), demand(demand) {}
 
-    std::map<VEHICLETYPES, short int> getDemand() {return this->demand;}
+    std::map<VEHICLETYPES::VEHICLETYPES_, short int> getDemand() {return this->demand;}
 
 private:
-    std::map<VEHICLETYPES, short int> demand;
+    std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 };
 
 
 class IntersectionRoute
 {
 public:
+    IntersectionRoute() {}
     IntersectionRoute(std::vector<IntersectionNode*> nodeList, std::vector<IntersectionEdge> edgeList)
         : nodeList(nodeList), edgeList(edgeList) {}
 
@@ -320,6 +286,10 @@ public:
     std::vector<IntersectionEdge> getEdgeList() const {return this->edgeList;}
     void setNodeList(std::vector<IntersectionNode*> nodelist) {nodeList = nodelist;}
     void setEdgeList(std::vector<IntersectionEdge> edgelist) {edgeList = edgelist;}
+
+    ~IntersectionRoute() {
+        for (IntersectionNode* n : this->nodeList) {delete n;}
+    }
 
 private:
     std::vector<IntersectionNode*> nodeList;
@@ -330,11 +300,12 @@ private:
 class Intersection
 {
 public:
+    Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
 
-    void simulate(BACKENDS) const;
-    void updateMetrics(BACKENDS);
-    double getMetric(METRICS);
+    void simulate(BACKENDS::BACKENDS_) const;
+    void updateMetrics(BACKENDS::BACKENDS_);
+    double getMetric(METRICS::METRICS_);
 
     std::vector<IntersectionRoute*> getRoutes() const;
     std::vector<IntersectionNode*> getUniqueNodes() const;
@@ -345,12 +316,12 @@ public:
 
 private:
     std::vector<IntersectionRoute> routes;
-    std::map<METRICS, double> currentMetrics;
-    const static std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > evaluations;
+    std::map<METRICS::METRICS_, double> currentMetrics;
+    const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
 };
 
 
-const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection::evaluations = 
+const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
 {
     {
         BACKENDS::SUMO, {
@@ -365,37 +336,21 @@ const std::map<BACKENDS, std::map<METRICS, IntersectionEvalFunc> > Intersection:
 class IntersectionScenario
 {
 public:
-    IntersectionScenario(std::vector<ScenarioNode> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
+    IntersectionScenario() {}
+    IntersectionScenario(std::vector<ScenarioNode*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
     IntersectionScenario(std::string xmlFilePath);
-    std::vector<ScenarioNode> getNodes() const {return this->nodes;}
+
+    ~IntersectionScenario() {
+        for (ScenarioNode* node : this->nodes) {delete node;}
+    }
+
+    std::vector<ScenarioNode*> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
 
 private:
-    std::vector<ScenarioNode> nodes;
+    std::vector<ScenarioNode*> nodes;
     std::vector<ScenarioEdge> edges;
 };
-
-
-
-/**
- * Implementations of class methods, single file
- * for easy includes and project maintenance
- */
-
-
-DataManager* DataManager::Get()
-{
-    static DataManager manager;
-    return &manager;
-}
-
-
-IntersectionNode* DataManager::createIntersectionNode(Point3d loc, JUNCTIONTYPES junctionType)
-{
-    IntersectionNode tmp(loc, junctionType);
-    intersectionNodeData.push_back(tmp);
-    return &(*intersectionNodeData.rbegin());
-}
 
 
 std::vector<Point3d> BezierCurve::rasterize(int resolution)
@@ -457,22 +412,16 @@ Point3d BezierCurve::evaluateParametric(double t)
 }
 
 
-void DataManager::removeIntersectionNode(IntersectionNode* node)
+bool IntersectionNode::removeReference()
 {
-    intersectionNodeData.erase(std::remove(intersectionNodeData.begin(), intersectionNodeData.end(), *node), intersectionNodeData.end());
-}
-
-
-void IntersectionNode::removeReference()
-{
+    this->referenceCount--;
     if (referenceCount == 1)
     {
-        GLOBALDATA->removeIntersectionNode(this);
+        delete this;
+        return true;
     }
-    else
-    {
-        this->referenceCount--;
-    }
+
+    return false;
 }
 
 
@@ -494,8 +443,8 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     std::map<std::string, ScenarioNode*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        Node node({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
-        nodeIDMap[xmlNode.attribute("id").value()] = &node;
+        ScenarioNode* node = new ScenarioNode({static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())});
+        nodeIDMap[xmlNode.attribute("id").value()] = node;
         this->nodes.push_back(node);
     }
 
@@ -508,7 +457,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
         s = nodeIDMap[xmlEdge.attribute("from").value()];
         e = nodeIDMap[xmlEdge.attribute("to").value()];
 
-        std::map<VEHICLETYPES, short int> demand;
+        std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 
         for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute())
         {
@@ -518,7 +467,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
             // If attribute contains demand data.
             if (pos != std::string::npos)
             {
-                VEHICLETYPES vehicleType = VEHICLETYPE_INDICES.at(attrName.substr(0, pos));
+                VEHICLETYPES::VEHICLETYPES_ vehicleType = VEHICLETYPES_INDICES.at(attrName.substr(0, pos));
                 short int vehicleDemand = attr.as_int();
                 demand[vehicleType] = vehicleDemand;
             }
@@ -529,7 +478,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 }
 
 
-void Intersection::simulate(BACKENDS back) const
+void Intersection::simulate(BACKENDS::BACKENDS_ back) const
 {
     if (back == BACKENDS::SUMO)
     {
@@ -539,9 +488,9 @@ void Intersection::simulate(BACKENDS back) const
 }
 
 
-void Intersection::updateMetrics(BACKENDS back)
+void Intersection::updateMetrics(BACKENDS::BACKENDS_ back)
 {
-    const std::map<METRICS, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
+    const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
     for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
     {
         (SumoInterface::Get()->*(it->second))(this);
