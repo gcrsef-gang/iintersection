@@ -1,0 +1,45 @@
+<nodes>
+
+    <!-- I/O points -->
+
+    <node id="west-exit" x="156" y="564" z="0" type="priority" />
+    <node id="west-entry" x="156" y="510" z="0" type="priority" />
+    <node id="east-entry" x="1545" y="564" z="0" type="priority" />
+    <node id="east-exit" x="1545" y="510" z="0" type="priority" />
+    <node id="south-exit" x="825" y="63" z="6" type="priority" />
+    <node id="south-entry" x="870" y="63" z="6" type="priority" />
+    <node id="north-entry" x="825" y="1008" z="6" type="priority" />
+    <node id="north-exit" x="870" y="1008" z="6" type="priority" />
+
+    <!-- Traffic Lights -->
+
+    <!--
+    <node id="1" x="420" y="537" z="0" type="traffic_light" />
+    <node id="2" x="1275" y="537" z="0" type="traffic_light" />
+    -->
+    <node id="1" x="420" y="537" z="0" type="priority" />
+    <node id="2" x="1275" y="537" z="0" type="priority" />
+
+    <!-- Branches -->
+
+    <node id="4" x="243" y="510" z="0" type="priority" />
+    <node id="6" x="666" y="510" z="0" type="priority" />
+    <node id="8" x="870" y="159" z="6" type="priority" />
+    <node id="12" x="1455" y="564" z="0" type="priority" />
+    <node id="14" x="825" y="963" z="6" type="priority" />
+    <node id="15" x="1029" y="564" z="0" type="priority" />
+    <node id="16" x="1188" y="336" z="0" type="priority" />
+    <node id="17" x="414" y="684" z="0" type="priority" />
+
+    <!-- Merges -->
+
+    <node id="3" x="243" y="564" z="0" type="priority" />
+    <node id="5" x="639" y="342" z="6" type="priority" />
+    <node id="7" x="825" y="159" z="6" type="priority" />
+    <node id="9" x="1449" y="510" z="0" type="priority" />
+    <node id="10" x="1143" y="510" z="0" type="priority" />
+    <node id="11" x="1026" y="720" z="6" type="priority" />
+    <node id="13" x="870" y="900" z="6" type="priority" />
+    <node id="18" x="552" y="564" z="0" type="priority" />
+
+</nodes>

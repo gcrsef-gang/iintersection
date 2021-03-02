@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 02/28/21 19:51:16 by Eclipse SUMO netedit Version 1.8.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <sumo-net-file value="C:\Users\james\iintersection\tests\intersections\diverging_diamond.net.xml"/>
+    </input>
+
+    <output>
+        <output-file value="C:\Users\james\iintersection\tests\intersections\diverging_diamond.net.xml"/>
+    </output>
+
+    <processing>
+        <geometry.min-radius.fix.railways value="false"/>
+        <geometry.max-grade.fix value="false"/>
+        <offset.disable-normalization value="true"/>
+        <lefthand value="false"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+        <junctions.corner-detail value="5"/>
+        <junctions.limit-turn-speed value="5.5"/>
+        <rectangular-lane-cut value="false"/>
+    </junctions>
+
+    <pedestrian>
+        <walkingareas value="false"/>
+    </pedestrian>
+
+    <netedit>
+        <route-files value="C:\Users\james\iintersection\tests\intersections\diverging_diamond.rou.xml"/>
+    </netedit>
+
+    <report>
+        <aggregate-warnings value="5"/>
+    </report>
+
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <flow id="flow_0" begin="0.00" from="7h" to="6h" via="7r 8r" end="3600.00" probability="0.80"/>
+    <flow id="flow_1" begin="0.00" from="7h" to="12h" via="20h 9h 10h 11h" end="3600.00" probability="0.80"/>
+    <flow id="flow_10" begin="0.00" from="13h" to="3h" via="11r 10r" end="3600.00" probability="0.80"/>
+    <flow id="flow_11" begin="0.00" from="13h" to="6h" via="14h 15h 16h 12r 8r" end="3600.00" probability="0.80"/>
+    <flow id="flow_2" begin="0.00" from="7h" to="3h" via="20h 9h 9r 10r" end="3600.00" probability="0.80"/>
+    <flow id="flow_3" begin="0.00" from="4h" to="12h" via="4r 5r 9h 10h 11h" end="3600.00" probability="0.80"/>
+    <flow id="flow_4" begin="0.00" from="4h" to="6h" via="5h" end="3600.00" probability="0.80"/>
+    <flow id="flow_5" begin="0.00" from="4h" to="19h" via="4r 6r" end="3600.00" probability="0.80"/>
+    <flow id="flow_6" begin="0.00" from="1h" to="12h" via="1r 2r" end="3600.00" probability="0.80"/>
+    <flow id="flow_7" begin="0.00" from="1h" to="3h" via="2h" end="3600.00" probability="0.80"/>
+    <flow id="flow_8" begin="0.00" from="1h" to="19h" via="1r 3r 16h l7h 18h" end="3600.00" probability="0.80"/>
+    <flow id="flow_9" begin="0.00" from="13h" to="19h" via="14h 15h 16h l7h 18h" end="3600.00" probability="0.80"/>
+</routes>
