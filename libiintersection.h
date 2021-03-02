@@ -15,11 +15,11 @@
 #define LIBIINTERSECTION_H
 
 #ifdef SUMO_LIB
-#include <netload/NLBuilder.h>
+#include <microsim/MSLane.h>
+#include <microsim/MSEdge.h>
 #include <microsim/MSNet.h>
-#include <utils/options/OptionsIO.h>
-#include <utils/common/SystemFrame.h>
-#include <utils/xml/XMLSubSys.h>
+#include <microsim/MSJunctionControl.h>
+#include <microsim/MSEdgeControl.h>
 #endif
 
 
@@ -46,6 +46,7 @@ class Intersection;
 class SumoInterface;
 class BackendsManager;
 class IntersectionNode;
+class IntersectionEdge;
 class DataManager;
 class Node;
 class Point3d;
@@ -55,9 +56,20 @@ class IntersectionRoute;
 // Tracking current max node ID
 static unsigned short int CURRENT_UUID_MAX = 0;
 
-// Global constants for the evaluation backends
+
+/**
+ * Global constants that do not affect the output of the algorithm (or do so in a very minimal way).
+ * These can be set arbitrarily, or changed for the sake of performance
+ */
 static const short int BEZIER_SAMPLES = 500;
+
+
+/**
+ * Global constants that serve as C++ hyperparameters. These will directly affect the algorithm's output.
+ */
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
+
+
 enum class METRICS {SAFETY, EMISSIONS, EFFICIENCY};
 enum class BACKENDS {SUMO, VISSIM, CITYFLOW};
 
@@ -67,11 +79,18 @@ const std::map<std::string, VEHICLETYPES> VEHICLETYPE_INDICES = {{"car", VEHICLE
 enum class JUNCTIONTYPES {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, ZIPPER, TRAFFIC_LIGHT_RIGHT_ON_RED};
 const std::map<JUNCTIONTYPES, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::ZIPPER, "zipper"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
+std::map<JUNCTIONTYPES, SumoXMLNodeType> SumoJunctionMap = {
+    // Fill this in later pls
+};
 
 // Intersection evaluation function type
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
 
 
+/**
+ * @brief A factory and global data storage container.
+ * Follows the singleton design pattern, and can only be instantiated once.
+ */
 class DataManager
 {
 public:
@@ -88,11 +107,15 @@ private:
 };
 
 
+/**
+ * Initiate single global instance of the DataManager class
+ * in order to keep all nodes in global memory
+ */
 static DataManager* GLOBALDATA = DataManager::Get();
 
 
 /**
- * \brief The base backend evaluation class - contains methods for retrieving all metrics
+ * @brief The base backend evaluation class - contains methods for retrieving all metrics
  * that will be derived for each backend-specific class. Created specifically for a generalized
  * evaluation function type, stored in the ::ii::Intersection::evaluations map.
  * 
@@ -107,35 +130,6 @@ public:
 };
 
 
-class SumoInterface : public BackendsManager
-{
-public:
-    SumoInterface(const SumoInterface&) = delete;
-    SumoInterface& operator= (const SumoInterface&) = delete;
-
-    static SumoInterface* Get()
-    {
-        static SumoInterface instance;
-        return &instance;
-    }
-
-    void rebuildNet(const Intersection*) {};
-    void performSim(const std::size_t time) {};
-    void updateIntersectionEmissions(Intersection*) {};
-    void updateIntersectionSafety(Intersection*) {};
-    void updateIntersectionEfficiency(Intersection*);
-
-private:
-    SumoInterface() {}
-    MSNet* net;
-};
-
-
-// void SumoInterface::updateIntersectionEfficiency(Intersection* int_) {
-//     this->net->getTravelTime();
-// }
-
-
 class Point3d
 {
 public:
@@ -148,6 +142,47 @@ public:
 
 private:
     short int x_, y_, z_;
+};
+
+
+
+class SumoInterface : public BackendsManager
+{
+public:
+    SumoInterface(const SumoInterface&) = delete;
+    SumoInterface& operator= (const SumoInterface&) = delete;
+
+    static SumoInterface* Get()
+    {
+        static SumoInterface instance;
+        return &instance;
+    }
+
+    void rebuildNet(const Intersection*);
+    void performSim(const std::size_t time);
+    void updateIntersectionEmissions(Intersection*) {};
+    void updateIntersectionSafety(Intersection*) {};
+    void updateIntersectionEfficiency(Intersection*);
+
+private:
+    SumoInterface() {}
+    MSNet* net;
+
+    static Position Point3dToPosition(Point3d p) {return (Position(p.x(), p.y(), p.z()));}
+
+    MSEdgeControl* buildSumoEdges(std::vector<IntersectionEdge*>, std::vector<IntersectionNode*>, MSJunctionControl*);
+    MSEdge* buildSumoEdge(IntersectionEdge*);
+    std::vector<MSLane> buildSumoLanes(IntersectionEdge*);
+    
+    MSJunctionControl* buildSumoJunctions(std::vector<IntersectionNode*>);
+    MSJunction* buildSumoJunction(IntersectionNode*);
+
+
+    // Relate Node*s to the MSJunction*s stored in GLOBALDATA
+    std::map<Node*, MSJunction*> nodeJunctionMap;
+
+    std::vector<MSJunction> junctions;
+    std::vector<MSEdge> edges;
 };
 
 
@@ -218,6 +253,7 @@ friend class DataManager;
 class Edge
 {
 public:
+    Edge() {}
     Edge(Node* s, Node* e) : s(s), e(e) {};
     Node* getStartNode() const {return s;}
     Node* getEndNode() const {return e;}
@@ -231,13 +267,18 @@ private:
 class IntersectionEdge : public Edge
 {
 public:
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
     short int getNumLanes() const {return this->numlanes;}
     short int getSpeedLimit() const {return this->speedlimit;}
     short int getPriority() const {return this->priority;}
     
+    
+    IntersectionNode* getStartNode() const {return s;}
+    IntersectionNode* getEndNode() const {return e;}
+
+
     void setStartNode(IntersectionNode*);
     void setEndNode(IntersectionNode*);
 
@@ -247,6 +288,9 @@ public:
     void setPriority(short int priority_) {this->priority = priority_;}
 
 private:
+    IntersectionNode* s;
+    IntersectionNode* e;
+
     BezierCurve shape;
     short int numlanes;
     short int speedlimit;
@@ -291,7 +335,10 @@ public:
     void simulate(BACKENDS) const;
     void updateMetrics(BACKENDS);
     double getMetric(METRICS);
+
     std::vector<IntersectionRoute*> getRoutes() const;
+    std::vector<IntersectionNode*> getUniqueNodes() const;
+    std::vector<IntersectionEdge*> getUniqueEdges() const;
 
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
@@ -596,6 +643,61 @@ std::string Intersection::getEdgeXML() const
 }
 
 
+
+/**
+ * All SUMO related backend helper methods
+ */
+
+
+void SumoInterface::performSim(const std::size_t time)
+{
+    net->simulate(0, SIMTIME);
+}
+
+
+void SumoInterface::rebuildNet(const Intersection* iint)
+{
+    MSJunctionControl* junctionCtl = this->buildSumoJunctions(iint->getUniqueNodes());
+    MSEdgeControl* edgeCtl = this->buildSumoEdges(iint->getUniqueEdges(), iint->getUniqueNodes(), junctionCtl);
+}
+
+
+MSJunctionControl* SumoInterface::buildSumoJunctions(std::vector<IntersectionNode*> iinodes)
+{
+    MSJunctionControl* ctl = new MSJunctionControl(); 
+    
+    for (IntersectionNode* iinode : iinodes) 
+    {
+        ctl->add(std::to_string(iinode->getID()), this->buildSumoJunction(iinode));
+    }
+
+    return ctl;
+}
+
+
+MSJunction* SumoInterface::buildSumoJunction(IntersectionNode* iinode)
+{
+    MSJunction* junc = new MSJunction(std::to_string(iinode->getID()), SumoJunctionMap[iinode->getJunctionType()], this->Point3dToPosition(*(iinode->getLoc())), std::vector<Position>{Point3dToPosition({0,0,0})}, "test");
+    nodeJunctionMap[iinode] = junc;
+    return junc;
+}
+
+
+MSEdgeControl* SumoInterface::buildSumoEdges(std::vector<IntersectionEdge*> iiedges, std::vector<IntersectionNode*> iinodes, MSJunctionControl* junctionCtl)
+{
+    MSEdgeVector edges;
+    
+    for (IntersectionEdge* iiedge : iiedges)
+    {
+        MSEdge* edge = this->buildSumoEdge(iiedge);
+        edges.push_back(edge);
+    }
+}
+
+
+void SumoInterface::updateIntersectionEfficiency(Intersection* int_) {
+    // this->net->getTravelTime();
+}
 }
 
 
