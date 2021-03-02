@@ -1,13 +1,16 @@
 # Dev
 TODO.md
-__pycache__/
-venv
+venv/
 .vscode/
 
 # Cython
 build/
 libiintersection.cpp
 libiintersection.*.so
+
+# Python
+__pycache__/
+iintersection.egg-info
 
 # Misc.
 test.cpp

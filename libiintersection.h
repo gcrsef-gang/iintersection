@@ -15,11 +15,11 @@
 #define LIBIINTERSECTION_H
 
 #ifdef SUMO_LIB
-#include <netload/NLBuilder.h>
-#include <microsim/MSNet.h>
-#include <utils/options/OptionsIO.h>
-#include <utils/common/SystemFrame.h>
-#include <utils/xml/XMLSubSys.h>
+// #include <netload/NLBuilder.h>
+// #include <microsim/MSNet.h>
+// #include <utils/options/OptionsIO.h>
+// #include <utils/common/SystemFrame.h>
+// #include <utils/xml/XMLSubSys.h>
 #endif
 
 
@@ -107,28 +107,28 @@ public:
 };
 
 
-class SumoInterface : public BackendsManager
-{
-public:
-    SumoInterface(const SumoInterface&) = delete;
-    SumoInterface& operator= (const SumoInterface&) = delete;
+// class SumoInterface : public BackendsManager
+// {
+// public:
+//     SumoInterface(const SumoInterface&) = delete;
+//     SumoInterface& operator= (const SumoInterface&) = delete;
 
-    static SumoInterface* Get()
-    {
-        static SumoInterface instance;
-        return &instance;
-    }
+//     static SumoInterface* Get()
+//     {
+//         static SumoInterface instance;
+//         return &instance;
+//     }
 
-    void rebuildNet(const Intersection*) {};
-    void performSim(const std::size_t time) {};
-    void updateIntersectionEmissions(Intersection*) {};
-    void updateIntersectionSafety(Intersection*) {};
-    void updateIntersectionEfficiency(Intersection*);
+//     void rebuildNet(const Intersection*) {};
+//     void performSim(const std::size_t time) {};
+//     void updateIntersectionEmissions(Intersection*) {};
+//     void updateIntersectionSafety(Intersection*) {};
+//     void updateIntersectionEfficiency(Intersection*);
 
-private:
-    SumoInterface() {}
-    MSNet* net;
-};
+// private:
+//     SumoInterface() {}
+//     MSNet* net;
+// };
 
 
 // void SumoInterface::updateIntersectionEfficiency(Intersection* int_) {
@@ -171,8 +171,8 @@ public:
 private:
     Point3d evaluateParametric(double t);
 
-    void setStartNode(IntersectionNode*);
-    void setEndNode(IntersectionNode*);
+    void setStartNode(IntersectionNode* node) {s = node;}
+    void setEndNode(IntersectionNode* node) {e = node;}
     IntersectionNode* s;
     IntersectionNode* e;
     std::vector<Point3d> handles;
@@ -226,7 +226,7 @@ public:
     Node* getStartNode() const {return s;}
     Node* getEndNode() const {return e;}
 
-private:
+protected:
     Node* s; // starting node
     Node* e; // ending node
 };
@@ -243,8 +243,8 @@ public:
     short int getSpeedLimit() const {return this->speedlimit;}
     short int getPriority() const {return this->priority;}
     
-    void setStartNode(IntersectionNode*);
-    void setEndNode(IntersectionNode*);
+    void setStartNode(IntersectionNode* node) {s = node;}
+    void setEndNode(IntersectionNode* node) {e = node;}
 
     void setHandles(std::vector<Point3d> handles) {this->shape.setHandles(handles);}
     void setNumLanes(short int numLanes_) {this->numlanes = numLanes_;}
@@ -298,8 +298,8 @@ public:
 
     void simulate(BACKENDS::BACKENDS_) const;
     void updateMetrics(BACKENDS::BACKENDS_);
-    double getMetric(METRICS::METRICS_);
-    std::vector<IntersectionRoute*> getRoutes() const;
+    double getMetric(METRICS::METRICS_) {return 0;}
+    std::vector<IntersectionRoute*> getRoutes();
 
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
@@ -311,16 +311,16 @@ private:
 };
 
 
-const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
-{
-    {
-        BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
-            {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
-            {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
-        }
-    }
-};
+// const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
+// {
+//     {
+//         BACKENDS::SUMO, {
+//             {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
+//             {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
+//             {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
+//         }
+//     }
+// };
 
 
 class IntersectionScenario
@@ -493,23 +493,33 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 
 void Intersection::simulate(BACKENDS::BACKENDS_ back) const
 {
-    if (back == BACKENDS::SUMO)
-    {
-        SumoInterface::Get()->rebuildNet(this);
-        SumoInterface::Get()->performSim(SIMTIME_);
-    }
+    // if (back == BACKENDS::SUMO)
+    // {
+    //     SumoInterface::Get()->rebuildNet(this);
+    //     SumoInterface::Get()->performSim(SIMTIME_);
+    // }
 }
 
 
 void Intersection::updateMetrics(BACKENDS::BACKENDS_ back)
 {
-    const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
-    for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
-    {
-        (SumoInterface::Get()->*(it->second))(this);
-    }
+    // const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
+    // for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
+    // {
+    //     (SumoInterface::Get()->*(it->second))(this);
+    // }
 }
 
+
+std::vector<IntersectionRoute*> Intersection::getRoutes()
+{
+    std::vector<IntersectionRoute*> routePtrs;
+    for (int i = 0; i < routes.size(); i++)
+    {
+        routePtrs.push_back(&routes[i]);
+    }
+    return routePtrs;
+}
 
 
 /**

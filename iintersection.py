@@ -543,7 +543,7 @@ def mutate(solution):
                                                 edge.getEndNode.getLoc(), 1)[0]
                     junction_type = rng.choice(JUNCTIONTYPES.values())
                     new_node = IntersectionNodePointer(loc, junction_type)
-                elif rng.choice(2):
+                else:
                     # Choose existing node.
                     new_node = rng.choice([node for route_ in routes for node in route_.getNodesList()])
                 new_nodes.insert(new_nodes.index(edge.getEndNode()), new_node)
