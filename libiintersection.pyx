@@ -163,7 +163,7 @@ cdef class PyIntersectionScenario:
         pyvector = []
         for node in nodevector:
             loc = node.getLoc()
-            pyvector.append(PyNode(loc.x(), loc.y(), loc.z()))
+            pyvector.append(PyNode((loc.x(), loc.y(), loc.z())))
         return pyvector
     
     def getEdges(self):
@@ -465,6 +465,10 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
         cdef PyIntersectionNodePointer pyintersectionnodepointer = PyIntersectionNodePointer()
         pyintersectionnodepointer.c_intersectionnodepointer = i_node_ptr
         return pyintersectionnodepointer
+
+    @staticmethod
+    def fromScenarioNode(PyScenarioNodePointer node):
+        return PyIntersectionNodePointer(deref(node).getLoc(), UNREGULATED)
 
     def getJunctionType(self):
         return deref(self.c_intersectionnodepointer).getJunctionType()

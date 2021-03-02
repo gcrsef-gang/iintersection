@@ -321,7 +321,7 @@ def generate_inital_population(input_scenario):
         node_z_coords = np.array(node_z_coords, dtype=np.int32)
         node_types = rng.integers(low=0, high=len(JUNCTIONTYPES), size=num_nodes[i])
         intersection_nodes = [
-            IntersectionNodePointer(x, y, z, node_type) for x, y, z, node_type
+            IntersectionNodePointer((x, y, z), node_type) for x, y, z, node_type
             in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
         ]
 
@@ -332,14 +332,14 @@ def generate_inital_population(input_scenario):
             end_node = input_edge.getEndNode()
 
             unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [IntersectionNodePointer(end_node)]
+            route_nodes = [IntersectionNodePointer.fromScenarioNode(start_node)]
             route_edges = []
             while True:
                 exit_ = False
 
                 # 50/50 chance of connecting the previous node to the end node of the route.
                 if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
-                    route_nodes.append(IntersectionNodePointer(end_node))
+                    route_nodes.append(IntersectionNodePointer.fromScenarioNode(end_node))
                     exit_ = True
                 elif len(unchosen_nodes) > 0:
                     # Choose a random node with a probability proportional to its distance from the
@@ -356,7 +356,7 @@ def generate_inital_population(input_scenario):
                     unchosen_nodes.remove(next_node_index)
                 else:
                     # All the nodes of the intersection are in this route.
-                    route_nodes.append(IntersectionNodePointer(end_node))
+                    route_nodes.append(IntersectionNodePointer.fromScenarioNode(end_node))
                     exit_ = True
 
                 # Generate an edge between the two most recently added nodes in the route.
@@ -382,7 +382,7 @@ def generate_inital_population(input_scenario):
 
                 if exit_:
                     break
-            
+
             intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
 
         # Create a new row of intersections.
@@ -846,7 +846,7 @@ if __name__ == "__main__":
     node_output_files = [f"intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
     edge_output_files = [f"intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
     for i, intersection in enumerate(optimized_intersections):
-        with open(node_output_files[i], 'w+') as f:
+        with open(node_output_files[i], "w+") as f:
             f.write(node_output_files[i], intersection.getNodeXML())
-        with open(edge_output_files[i], 'w+') as f:
+        with open(edge_output_files[i], "w+") as f:
             f.write(edge_output_files[i], intersection.getEdgeXML())

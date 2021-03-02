@@ -14,5 +14,5 @@ Then you can run the tests:
 
 ```
 cd tests
-python3 test_iintersection.py
+python3 test_iintersection.py <function>
 ```
