@@ -98,7 +98,8 @@ public:
 class Point3d
 {
 public:
-    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {};
+    Point3d() {}
+    Point3d(short int x, short int y, short int z) : x_(x), y_(y), z_(z) {}
     Point3d(std::vector<short int> coords) : x_(coords[0]), y_(coords[1]), z_(coords[2]) {}
 
     short int x() {return this->x_;}
@@ -181,7 +182,6 @@ friend class IntersectionEdge;
 class Node
 {
 public:
-    // Node() {}
     Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() const {return this->UUID;}
@@ -200,14 +200,13 @@ typedef Node ScenarioNode;
 class IntersectionNode : public Node
 {
 public:
+    IntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType)
+            : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
     JUNCTIONTYPES::JUNCTIONTYPES_ getJunctionType() const {return this->junctionType;}
     void addReference() {this->referenceCount++;}
     bool removeReference();
 
 private:
-    // IntersectionNode() {}
-    IntersectionNode(Point3d loc, JUNCTIONTYPES::JUNCTIONTYPES_ junctionType)
-        : Node(loc), junctionType(junctionType) {this->referenceCount = 1;}
 
     JUNCTIONTYPES::JUNCTIONTYPES_ junctionType; 
     unsigned short int referenceCount;
