@@ -13,7 +13,9 @@ from cython.operator cimport postincrement
 ctypedef Node* nodepointer
 ctypedef IntersectionRoute* intersectionroutepointer
 ctypedef IntersectionNode* intersectionnodepointer
+ctypedef IntersectionEdge* intersectionedgepointer
 
+ctypedef PyNodePointer PyScenarioNodePointer
 
 cdef extern from "libiintersection.h" namespace "ii::METRICS":
     cdef enum METRICS_:
@@ -32,21 +34,19 @@ cdef extern from "libiintersection.h" namespace "ii::JUNCTIONTYPES":
         PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED
 
 cdef extern from "libiintersection.h" namespace "ii":
-    cdef cppclass DataManager:
-        intersectionnodepointer createIntersectionNode(Point3d loc, JUNCTIONTYPES_ junctiontype)
-
-    DataManager* GLOBALDATA
 
     cdef cppclass IntersectionScenario:
         IntersectionScenario()
-        IntersectionScenario(vector[Node] nodes, vector[ScenarioEdge] edges) except +
+        IntersectionScenario(vector[nodepointer] nodes, vector[ScenarioEdge] edges) except +
         IntersectionScenario(string xmlFilePath)
-        vector[Node] getNodes()
+        vector[nodepointer] getNodes()
         vector[ScenarioEdge] getEdges()
         
     cdef cppclass Intersection:
         Intersection()
         Intersection(vector[IntersectionRoute]) except +
+        vector[intersectionnodepointer] getUniqueNodes()
+        vector[intersectionedgepointer] getUniqueEdges()
         void simulate(BACKENDS_)
         void updateMetrics(BACKENDS_)
         double getMetric(METRICS_)
@@ -67,7 +67,6 @@ cdef extern from "libiintersection.h" namespace "ii":
         void setEdgeList(vector[IntersectionEdge] edgelist)
 
     cdef cppclass Node:
-        Node()
         Node(Point3d)
         Point3d* getLoc()
         int getID()
@@ -81,7 +80,6 @@ cdef extern from "libiintersection.h" namespace "ii":
         short int z()
 
     cdef cppclass IntersectionNode(Node):
-        IntersectionNode()
         IntersectionNode(Point3d loc, JUNCTIONTYPES_ junctionType) except +
         JUNCTIONTYPES_ getJunctionType()
         void addReference()
@@ -126,45 +124,21 @@ PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2}
 PY_VEHICLETYPES = {"car": 0, "truck": 1, "idk": 2}
 PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "traffic_light_on_red": 7}
 
-ctypedef PyNode PyScenarioNode
-ctypedef PyNodePointer PyScenarioNodePointer
-
 
 cdef class PyIntersectionScenario:
     cdef IntersectionScenario c_intersectionscenario
 
-    def __cinit__(self, list pynodes=[], list pyedges=[]):
-
-        if pynodes == [] and pyedges == []:
-            # Being called from `fromCppObject`
-            return
-
-        cdef vector[Node] nodes
-        cdef PyNode node
-        for node in pynodes:
-            nodes.push_back(node.c_node)
-
-        cdef PyScenarioEdge edge
-        cdef vector[ScenarioEdge] edges
-        for edge in pyedges:
-            edges.push_back(edge.c_scenarioedge)
-        self.c_intersectionscenario = IntersectionScenario(nodes, edges)
-
-    @staticmethod
-    def fromXML(str xmlFilePath):
-        cdef IntersectionScenario c_intersectionscenario = IntersectionScenario(xmlFilePath.encode("utf-8"))
-        cdef PyIntersectionScenario scenario = PyIntersectionScenario()
-        scenario.c_intersectionscenario = c_intersectionscenario
-        return scenario
+    def __cinit__(self, str file_path):
+        cdef IntersectionScenario c_intersectionscenario = IntersectionScenario(file_path.encode("utf-8"))
+        self.c_intersectionscenario = c_intersectionscenario
 
     def getNodes(self):
-        cdef vector[Node] nodevector = self.c_intersectionscenario.getNodes()
-        cdef Node node
-        pyvector = []
-        for node in nodevector:
-            loc = node.getLoc()
-            pyvector.append(PyNode((loc.x(), loc.y(), loc.z())))
-        return pyvector
+        cdef vector[nodepointer] c_nodes = self.c_intersectionscenario.getNodes()
+        cdef list nodes = []
+        cdef nodepointer node_ptr
+        for node in c_nodes:
+            nodes.append(PyNodePointer.fromCppPointer(node))
+        return nodes
     
     def getEdges(self):
         cdef vector[ScenarioEdge] edgevector = self.c_intersectionscenario.getEdges()
@@ -184,6 +158,22 @@ cdef class PyIntersection:
             routes.push_back(route.c_intersectionroute)
         self.c_intersection = Intersection(routes)
 
+    def getUniqueNodes(self):
+        cdef vector[intersectionnodepointer] c_unique_nodes = self.c_intersection.getUniqueNodes()
+        cdef list unique_nodes = []
+        cdef intersectionnodepointer node_ptr
+        for node_ptr in c_unique_nodes:
+            unique_nodes.append(PyIntersectionNodePointer.fromCppPointer(node_ptr))
+        return unique_nodes
+
+    def getUniqueEdges(self):
+        cdef vector[intersectionedgepointer] c_unique_edges = self.c_intersection.getUniqueEdges()
+        cdef list unique_edges = []
+        cdef intersectionedgepointer edge
+        for edge in c_unique_edges:
+            unique_edges.append(PyIntersectionEdgePointer.fromCppPointer(edge))
+        return unique_edges
+
     def simulate(self, int backend):
         self.c_intersection.simulate(<BACKENDS_>backend)
 
@@ -201,7 +191,7 @@ cdef class PyIntersection:
 
     def getRoutes(self):
         cdef vector[intersectionroutepointer] routesvector = self.c_intersection.getRoutes()
-        pyvector = []
+        cdef list pyvector = []
         for route in routesvector:
             pyvector.append(PyIntersectionRoutePointer.fromCppPointer(route))
         return pyvector
@@ -249,20 +239,6 @@ cdef class PyIntersectionRoute:
         for edge in edgelist:
             cyvector.push_back(edge.c_intersectionedge)
         self.c_intersectionroute.setEdgeList(cyvector)
-
-cdef class PyNode:
-    cdef Node c_node
-
-    def __cinit__(self, tuple coords):
-
-        self.c_node = Node(Point3d(coords[0], coords[1], coords[2]))
-
-    def getLoc(self):
-        cdef Point3d loc = deref(self.c_node.getLoc())
-        return loc.x(), loc.y(), loc.z()
-
-    def getID(self):
-        return self.c_node.getID()
 
 
 cdef class PyBezierCurve:
@@ -419,11 +395,36 @@ cdef class PyIntersectionEdge(PyEdge):
     def setPriority(self, priority):
         self.c_intersectionedge.setPriority(priority)
 
-    def __eq__(self, other):
-        return (self.getShape().getHandles() == other.getShape().getHandles()
-            and self.getNumLanes() == other.getNumLanes()
-            and self.getSpeedLimit() == other.getSpeedLimit()
-            and self.getPriority() == other.getPriority())
+    def __eq__(self, PyIntersectionEdge other):
+        cdef vector[Point3d] self_handles = self.c_intersectionedge.getShape().getHandles()
+        # cdef IntersectionEdge other_edge = other.c_intersectionedge
+        cdef vector[Point3d] other_handles = other.c_intersectionedge.getShape().getHandles()
+        cdef Point3d self_handle, other_handle
+        cdef int i
+        if self_handles.size() != other_handles.size():
+            return False
+        for i in range(self_handles.size()):
+            self_handle = self_handles[i]
+            other_handle = other_handles[i]
+            if (
+                    self_handle.x() != other_handle.x()
+                 or self_handle.y() != other_handle.y()
+                 or self_handle.z() != other_handle.z()):
+                return False
+        return True
+
+
+cdef class PyIntersectionEdgePointer:
+    cdef intersectionedgepointer c_intersectionedgepointer
+
+    def __cinit__(self):
+        self.c_intersectionedgepointer = NULL
+
+    @staticmethod
+    cdef PyIntersectionEdgePointer fromCppPointer(intersectionedgepointer edge_ptr):
+        cdef PyIntersectionEdgePointer py_edge_ptr = PyIntersectionEdgePointer()
+        py_edge_ptr.c_intersectionedgepointer = edge_ptr
+        return py_edge_ptr
 
 
 cdef class PyNodePointer:
@@ -456,7 +457,7 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
 
     def __cinit__(self, loc=None, junctiontype=None):
         if loc != None:
-            self.c_intersectionnodepointer = GLOBALDATA.createIntersectionNode(Point3d(loc[0], loc[1], loc[2]), junctiontype)
+            self.c_intersectionnodepointer = new IntersectionNode(Point3d(loc[0], loc[1], loc[2]), junctiontype)
         else:
             self.c_intersectionnodepointer = NULL
 
@@ -468,7 +469,7 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
 
     @staticmethod
     def fromScenarioNode(PyScenarioNodePointer node):
-        return PyIntersectionNodePointer(deref(node).getLoc(), UNREGULATED)
+        return PyIntersectionNodePointer(node.getLoc(), UNREGULATED)
 
     def getJunctionType(self):
         return deref(self.c_intersectionnodepointer).getJunctionType()

@@ -766,15 +766,12 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
 def optimize(input_scenario):
     """Estimates the pareto front of optimal intersections for a given traffic scenario.
 
+    Writes the intersections to a directory 'tmp'. 
+
     Parameters
     ----------
     input_scenario: IntersectionScenario
         A traffic scenario which can be handled by an intersection or interchange.
-
-    Returns
-    -------
-    list of Intersection
-        An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
     est_pareto_front = []
     population = generate_inital_population(input_scenario)
@@ -806,11 +803,13 @@ def optimize(input_scenario):
             if replacement_solution is offspring:
                 # A reference is getting deleted to each of the nodes in the intersection that will
                 # no longer be part of the the population.
-                for route in current_individual.getRoutes():
-                    for node in route.getNodeList():
-                        node.removeReference()
+                for node in current_individual.getUniqueNodes():
+                    node.removeReference()
                 if dominant:
                     update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+            else:
+                for node in offspring.getUniqueNodes():
+                    node.removeReference()
         population = intermediate_population
 
     return est_pareto_front
@@ -827,7 +826,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Generate scenario object from xml file.
-    input_scenario = IntersectionScenario.fromXML(args.scenario)
+    input_scenario = IntersectionScenario(args.scenario)
 
     # Set constants.
     if args.backend:
