@@ -426,6 +426,13 @@ cdef class PyIntersectionEdgePointer:
         py_edge_ptr.c_intersectionedgepointer = edge_ptr
         return py_edge_ptr
 
+    def getShape(self):
+        cdef BezierCurve c_bezier_curve = deref(self.c_intersectionedgepointer).getShape()
+        return PyBezierCurve.fromCppObject(c_bezier_curve)
+
+    def getNumLanes(self):
+        return deref(self.c_intersectionedgepointer).getNumLanes()
+
 
 cdef class PyNodePointer:
     cdef nodepointer c_nodepointer 
