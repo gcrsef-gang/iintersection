@@ -468,7 +468,7 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
 
     @staticmethod
     def fromScenarioNode(PyScenarioNodePointer node):
-        return PyIntersectionNodePointer(deref(node).getLoc(), UNREGULATED)
+        return PyIntersectionNodePointer(node.getLoc(), UNREGULATED)
 
     def getJunctionType(self):
         return deref(self.c_intersectionnodepointer).getJunctionType()

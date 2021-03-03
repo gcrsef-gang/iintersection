@@ -29,6 +29,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <assert.h>
 #include <list>
 
 #include <pugixml/src/pugixml.hpp>
@@ -305,7 +306,7 @@ public:
     void updateMetrics(BACKENDS::BACKENDS_);
     double getMetric(METRICS::METRICS_);
 
-    std::vector<IntersectionRoute*> getRoutes() const;
+    std::vector<IntersectionRoute*> getRoutes();
     std::vector<IntersectionNode*> getUniqueNodes() const;
     std::vector<IntersectionEdge*> getUniqueEdges() const;
 

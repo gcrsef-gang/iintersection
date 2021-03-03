@@ -7,6 +7,7 @@ import argparse
 import math
 
 import numpy as np
+import numpy.polynomial.polynomial as poly
 
 from libiintersection import (
     PY_METRICS as METRICS, PY_BACKENDS as BACKENDS, PY_JUNCTIONTYPES as JUNCTIONTYPES,
@@ -271,6 +272,37 @@ def _transform_edge(start_node, end_node, repl_edge):
                                 repl_edge.getSpeedLimit(), repl_edge.getPriority())
     return new_edge
 
+def _get_edges_intersection(edge1, edge2):
+    edge1_bezier = edge1.getShape()
+    edge1_handles = edge1_bezier.getHandles()
+    edge1_handles.insert(0, edge1_bezier.getStartNode().getLoc())
+    edge1_handles.insert(-1, edge1_bezier.getEndNode().getLoc())
+
+    edge2_bezier = edge2.getShape()
+    edge2_handles = edge2_bezier.getHandles()
+    edge2_handles.insert(0, edge2_bezier.getStartNode().getLoc())
+    edge2_handles.insert(-1, edge2_bezier.getEndNode().getLoc())
+
+def _check_edge_intersections(intersection, edge=None):
+    intersection_edges = intersection.getUniqueEdges()
+    if edge:
+        for intersection_edge in intersection_edges:
+            if edge == intersection_edge:
+                continue
+            bool_ = _get_edges_intersection(edge, intersection_edge)
+            if bool_ == False:
+                return False
+        return True
+    else:
+        for edge1 in intersection_edges:
+            for edge2 in intersection_edges:
+                if edge1 == edge2:
+                    continue
+                bool_ = _get_edges_intersection(edge1, edge2)
+                if bool_ == False:
+                    return False
+        return True
+                
 
 def generate_inital_population(input_scenario):
     """Generates the initial grid of solutions.

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 03/02/21 15:21:12 by Eclipse SUMO netedit Version 1.8.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <output>
+        <plain-output-prefix value="C:\Users\james\iintersection\tests\intersections\hehe"/>
+    </output>
+
+    <processing>
+        <offset.disable-normalization value="true"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+    </junctions>
+
+    <report>
+        <aggregate-warnings value="5"/>
+    </report>
+
+</configuration>
+-->
+
+<nodes version="1.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/nodes_file.xsd">
+    <location netOffset="0.00,0.00" convBoundary="-37.50,11.53,60.01,84.82" origBoundary="10000000000.00,10000000000.00,-10000000000.00,-10000000000.00" projParameter="!"/>
+
+    <node id="gneJ0" x="-37.50" y="50.24" type="priority"/>
+    <node id="gneJ1" x="60.01" y="54.02" type="dead_end"/>
+    <node id="gneJ2" x="6.56" y="84.34" type="dead_end"/>
+    <node id="gneJ3" x="11.77" y="11.53" type="priority"/>
+    <node id="gneJ4" x="24.74" y="84.82" type="dead_end"/>
+    <node id="gneJ5" x="37.04" y="17.82" type="priority"/>
+</nodes>

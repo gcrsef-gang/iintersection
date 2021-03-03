@@ -1,0 +1,16 @@
+<configuration>
+    <input>
+        <net-file value="hehe.net.xml"/>
+        <route-files value="hehe.rou.xml"/>
+    </input>
+    <time>
+        <begin value="0"/>
+        <end value="10000"/>
+    </time>
+    <output>
+        <collision-output value="collisions_width.xml"/>
+    </output>
+    <processing>
+        <collision.check-junctions value="true"/>
+    </processing>
+</configuration>
