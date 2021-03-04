@@ -9,6 +9,8 @@ import math
 import numpy as np
 import scipy
 
+import traci
+
 from libiintersection import (
     PY_METRICS as METRICS, PY_BACKENDS as BACKENDS, PY_JUNCTIONTYPES as JUNCTIONTYPES,
     PY_VEHICLETYPES as VEHICLETYPES,
@@ -469,6 +471,7 @@ def generate_inital_population(input_scenario):
                 if i % row_size == 0:
                     intersections.append([])
                 intersections[-1].append(Intersection(intersection_routes))
+                break
 
     return intersections
 
@@ -815,8 +818,11 @@ def evaluate_fitness(solution):
     """
     validity = _check_edge_intersections(solution)
     if validity:
-        solution.simulate(BACKENDS["sumo"])
-        solution.updateMetrics(BACKENDS["sumo"])
+        # traci is being used
+        if BACKEND == 3:
+
+        solution.simulate(BACKEND)
+        solution.updateMetrics(BACKEND)
         return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
     else:
         return 1e6, 1e6, 1e6   
@@ -903,7 +909,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("scenario")
     parser.add_argument("-b", "--backend",
-                        choices=["sumo", "vissim", "cityflow"])
+                        choices=["sumo", "vissim", "cityflow", "traci"])
     parser.add_argument("-e", "--max-evaluations", dest="max_evaluations")
     parser.add_argument("-p", "--population-size", type=int, dest="population_size")
     args = parser.parse_args()
@@ -913,7 +919,10 @@ if __name__ == "__main__":
 
     # Set constants.
     if args.backend:
-        BACKEND = BACKENDS[args.backend]
+        if args.backend == "traci":
+            BACKEND = 3
+        else:
+            BACKEND = BACKENDS[args.backend]
     if args.max_evaluations:
         MAX_EVALUATIONS = args.max_evaluations
     if args.population_size:
