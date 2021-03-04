@@ -5,6 +5,7 @@ given traffic scenario.
 
 import argparse
 import math
+import subprocess
 
 import numpy as np
 import scipy
@@ -800,7 +801,7 @@ def mutate(solution):
         route.setEdgeList(new_edges)
 
 
-def evaluate_fitness(solution):
+def evaluate_fitness(solution, intersectionscenario=None):
     """Evaluates the fitness of the given solution.
 
     The solution's fitness metrics are now cached, so that the getMetrics() method will return
@@ -820,7 +821,13 @@ def evaluate_fitness(solution):
     if validity:
         # traci is being used
         if BACKEND == 3:
-
+            with open("traci/traci.nod.xml", "w+") as f:
+                f.write(intersection.getNodeXML())
+            with open("traci/traci.edg.xml", "w+") as f:
+                f.write(intersection.getEdgeXML())
+            subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
+            with open("traci/traci.rou.xml", "w+") as f:
+                f.write(intersection.getRouteXML(intersectionscenario))
         solution.simulate(BACKEND)
         solution.updateMetrics(BACKEND)
         return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
@@ -867,7 +874,7 @@ def optimize(input_scenario):
     # Evaluate all solutions in the grid.
     for row in population:
         for solution in row:
-            evaluate_fitness(solution)
+            evaluate_fitness(solution, input_scenario)
     num_evaluations = POPULATION_SIZE
 
     # Mainloop:
@@ -882,7 +889,7 @@ def optimize(input_scenario):
             mutate(offspring)
 
             # Choose an individual.
-            evaluate_fitness(offspring)
+            evaluate_fitness(offspring, input_scenario)
             num_evaluations += 1
             current_individual = population[pos[0]][pos[1]]
             replacement_solution, dominant = _get_dominant_solution(current_individual, offspring)
