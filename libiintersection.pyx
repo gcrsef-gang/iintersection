@@ -49,6 +49,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         vector[intersectionedgepointer] getUniqueEdges()
         void simulate(BACKENDS_)
         void updateMetrics(BACKENDS_)
+        void markInvalid()
         double getMetric(METRICS_)
 
         string getNodeXML()
@@ -120,7 +121,7 @@ cdef extern from "libiintersection.h" namespace "ii":
 
 
 PY_METRICS = {"safety": 0, "emissions": 1, "efficiency": 2}
-PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2}
+PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2, "traci": 3}
 PY_VEHICLETYPES = {"car": 0, "truck": 1, "idk": 2}
 PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "traffic_light_on_red": 7}
 
@@ -129,8 +130,7 @@ cdef class PyIntersectionScenario:
     cdef IntersectionScenario c_intersectionscenario
 
     def __cinit__(self, str file_path):
-        cdef IntersectionScenario c_intersectionscenario = IntersectionScenario(file_path.encode("utf-8"))
-        self.c_intersectionscenario = c_intersectionscenario
+        self.c_intersectionscenario = IntersectionScenario(file_path.encode("utf-8"))
 
     def getNodes(self):
         cdef vector[nodepointer] c_nodes = self.c_intersectionscenario.getNodes()
@@ -179,6 +179,9 @@ cdef class PyIntersection:
 
     def updateMetrics(self, int backend):
         self.c_intersection.updateMetrics(<BACKENDS_>backend)
+
+    def markInvalid(self):
+        self.c_intersection.markInvalid()
 
     def getMetric(self, int metric):
         return self.c_intersection.getMetric(<METRICS_>metric)

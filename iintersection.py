@@ -8,7 +8,6 @@ import math
 
 import numpy as np
 import scipy
-
 import traci
 
 from libiintersection import (
@@ -16,7 +15,7 @@ from libiintersection import (
     PY_VEHICLETYPES as VEHICLETYPES,
     PyBezierCurve as BezierCurve, PyIntersection as Intersection,
     PyIntersectionRoute as IntersectionRoute, PyIntersectionEdge as IntersectionEdge,
-    PyIntersectionScenario as IntersectionScenario,  PyNode as Node, PyScenarioEdge as ScenarioEdge,
+    PyIntersectionScenario as IntersectionScenario, PyScenarioEdge as ScenarioEdge,
     PyIntersectionNodePointer as IntersectionNodePointer
 )
 
@@ -793,6 +792,15 @@ def mutate(solution):
                 for n, node_ in enumerate(new_nodes):
                     if node_ == node:
                         new_nodes[n] = new_node
+                for route_ in routes:
+                    node_index = -1
+                    for n, node_ in enumerate(new_nodes):
+                        if node_ == node:
+                            node_index = n
+                    if node_index != -1:
+                        new_nodes_route_ = route_.getNodeList()
+                        new_nodes_route_[node_index] = node
+                        route_.setNodeList(new_nodes_route_)
                 node.removeReference()
 
         # In-place on Intersection object because getRoutes() returns route pointers.
@@ -816,16 +824,16 @@ def evaluate_fitness(solution):
     tuple of float
         The safety, emmissions, and efficiency values of the intersection, in that order.
     """
-    validity = _check_edge_intersections(solution)
-    if validity:
+    is_valid = _check_edge_intersections(solution)
+    if is_valid:
         # traci is being used
-        if BACKEND == 3:
-
+        if BACKEND == BACKENDS["traci"]:
+            pass
         solution.simulate(BACKEND)
         solution.updateMetrics(BACKEND)
-        return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
     else:
-        return 1e6, 1e6, 1e6   
+        solution.markInvalid()
+    return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.

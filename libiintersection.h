@@ -299,20 +299,21 @@ class Intersection
 {
 public:
     Intersection() {}
-    Intersection(std::vector<IntersectionRoute> routes) : routes(routes) {}
+    Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
 
     void simulate(BACKENDS::BACKENDS_) const;
     void updateMetrics(BACKENDS::BACKENDS_);
-    double getMetric(METRICS::METRICS_);
+    void markInvalid() {isValid = false;}
 
+    double getMetric(METRICS::METRICS_);
     std::vector<IntersectionRoute*> getRoutes();
     std::vector<IntersectionNode*> getUniqueNodes() const;
     std::vector<IntersectionEdge*> getUniqueEdges() const;
-
     std::string getEdgeXML() const;
     std::string getNodeXML() const;
 
 private:
+    bool isValid;
     std::vector<IntersectionRoute> routes;
     std::map<METRICS::METRICS_, double> currentMetrics;
     const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
@@ -504,6 +505,14 @@ std::vector<IntersectionRoute*> Intersection::getRoutes()
         routePtrs.push_back(&routes[i]);
     }
     return routePtrs;
+}
+
+
+void Intersection::getMetric(METRICS::METRICS_ metric) const
+{
+    if (!isValid) return 1000000;
+    // TODO: implement fancy sumo stuff.
+    return 0;
 }
 
 
