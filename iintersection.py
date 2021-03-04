@@ -28,6 +28,8 @@ MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
 GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
 
+
+SIMULATION_TIME = 604800
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
@@ -828,6 +830,32 @@ def evaluate_fitness(solution, intersectionscenario=None):
             subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
             with open("traci/traci.rou.xml", "w+") as f:
                 f.write(intersection.getRouteXML(intersectionscenario))
+
+            traci.start(["sumo", "-c", "traci/traci.sumocfg"])
+            step = 0
+            simulation_emissions = 0
+            simulation_collisions = 0
+            simulation_travel_times = 0
+            while step < SIMULATION_TIME:
+                traci.simulationStep()
+
+                emissions_sum = 0
+                vehicle_id_list = traci.vehicle.getIDList()
+                for vehicle_id in vehicle_id_list:
+                    emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
+
+                collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
+
+                travel_times_sum = 0
+                edge_ids = traci.edge.getIDList()
+                for edge_id in edge_ids:
+                    travel_times_sum += traci.edge.getTraveltime(edge_id)
+                
+                
+                simulation_emissions += emissions_sum
+                simulation_collisions += collisions_num
+                simulation_travel_times += travel_times_sum
+            return simulation_collisions, simulation_travel_times, simulation_emissions
         solution.simulate(BACKEND)
         solution.updateMetrics(BACKEND)
         return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])

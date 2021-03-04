@@ -5,7 +5,7 @@
     </input>
     <time>
         <begin value="0"/>
-        <end value="10000"/>
+        <end value="604800"/>
     </time>
     <output>
         <collision-output value="collisions_width.xml"/>
