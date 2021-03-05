@@ -41,7 +41,7 @@ MAX_PRIORITY = 10
 LANE_WIDTH = 37
 
 # Clearance Height + the thickness of the road (decimeters)
-CLEARANCE_HEIGHT = 50
+CLEARANCE_HEIGHT = 60
 POSITION_MUTATION_FACTOR = 0.05
 MUTATION_PROB = 0.1
 
