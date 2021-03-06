@@ -7,7 +7,7 @@ import argparse
 import math
 
 import numpy as np
-import scipy
+import scipy.optimize
 import traci
 
 from libiintersection import (
@@ -24,7 +24,7 @@ from libiintersection import (
 BACKEND = BACKENDS["sumo"]
 MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
-GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
+GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
 # Initial population paramters.
 NUM_NODES_MEAN = 15
@@ -277,6 +277,7 @@ def _transform_edge(start_node, end_node, repl_edge):
                                 repl_edge.getSpeedLimit(), repl_edge.getPriority())
     return new_edge
 
+
 def _bezier_curve(t, handles):
     if len(handles) == 2:
         x = (1-t)*handles[0][0] + t*handles[1][0]
@@ -291,6 +292,7 @@ def _bezier_curve(t, handles):
         y = math.pow((1-t), 3)*handles[0][1] + 3*math.pow((1-t),2)*t*handles[1][1] + 3*(1-t)*math.pow(t,2)*handles[2][1] + math.pow(t,3)*handles[3][1]
         z = math.pow((1-t), 3)*handles[0][2] + 3*math.pow((1-t),2)*t*handles[1][2] + 3*(1-t)*math.pow(t,2)*handles[2][2] + math.pow(t,3)*handles[3][2]
     return x, y, z
+
 
 def _2d_distance_evaluation(t_values, *args):
     handles1 = args[0]
@@ -309,6 +311,7 @@ def _2d_distance_evaluation(t_values, *args):
     else:
         return distance
 
+
 def _get_edges_intersection(edge1, edge2):
     edge1_bezier = edge1.getShape()
     edge1_handles = edge1_bezier.getHandles()
@@ -324,20 +327,20 @@ def _get_edges_intersection(edge1, edge2):
     args = (edge1_handles, edge2_handles, min_good_2d_distance)
     bounds = ((0,1),(0,1))
     solution = scipy.optimize.minimize(_2d_distance_evaluation, (0.5, 0.5), args=args, bounds=bounds)
-    min_distance = _2d_distance_evaluation(solution, args[0], args[1], args[2])
+    min_distance = _2d_distance_evaluation(solution.x, args[0], args[1], args[2])
     if min_distance > 0:
         return True
     else:
         return False
 
+
 def _check_edge_intersections(intersection, edge=None):
     intersection_edges = intersection.getUniqueEdges()
-    if edge:
+    if edge is not None:
         for intersection_edge in intersection_edges:
             if edge == intersection_edge:
                 continue
-            bool_ = _get_edges_intersection(edge, intersection_edge)
-            if bool_ == False:
+            if not _get_edges_intersection(edge, intersection_edge):
                 return False
         return True
     else:
@@ -345,8 +348,7 @@ def _check_edge_intersections(intersection, edge=None):
             for edge2 in intersection_edges:
                 if edge1 == edge2:
                     continue
-                bool_ = _get_edges_intersection(edge1, edge2)
-                if bool_ == False:
+                if not _get_edges_intersection(edge1, edge2):
                     return False
         return True
                 
@@ -368,9 +370,9 @@ def generate_inital_population(input_scenario):
     # Number of nodes for each intersection (excluding input nodes).
     num_nodes = rng.normal(loc=NUM_NODES_MEAN, scale=NUM_NODES_STDEV, size=POPULATION_SIZE)
     num_nodes = np.array(num_nodes, dtype=np.int32)
+    num_nodes = np.clip(num_nodes, a_min=0, a_max=None)
 
     intersections = []  # 2D square grid.
-    row_size = GRID_SIDELEN
 
     # Generate the bounding box of the intersection.
     input_nodes_coords = [node.getLoc() for node in input_nodes]
@@ -417,7 +419,7 @@ def generate_inital_population(input_scenario):
                     exit_ = False
 
                     # 50/50 chance of connecting the previous node to the end node of the route.
-                    if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
+                    if rng.random() < END_ROUTE_PROB:
                         route_nodes.append(IntersectionNodePointer.fromScenarioNode(end_node))
                         exit_ = True
                     elif len(unchosen_nodes) > 0:
@@ -430,7 +432,7 @@ def generate_inital_population(input_scenario):
                             distances.append(squared_distance)
                         distance_sum = sum(distances)
                         probabilities = [d / distance_sum for d in distances]
-                        next_node_index = rng.choice(intersection_nodes, p=probabilities)
+                        next_node_index = rng.choice(unchosen_nodes, p=probabilities)
                         route_nodes.append(intersection_nodes[next_node_index])
                         unchosen_nodes.remove(next_node_index)
                     else:
@@ -464,14 +466,14 @@ def generate_inital_population(input_scenario):
 
                 intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
 
-            intersection_ = Intersection(intersection_routes)
-            if _check_edge_intersections(intersection):
+            intersection = Intersection(intersection_routes)
+            # if _check_edge_intersections(intersection):
+            if True:
                 # Create a new row of intersections.
-                if i % row_size == 0:
+                if i % GRID_SIDELEN == 0:
                     intersections.append([])
-                intersections[-1].append(Intersection(intersection_routes))
+                intersections[-1].append(intersection)
                 break
-
     return intersections
 
 

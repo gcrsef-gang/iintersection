@@ -231,7 +231,7 @@ class IntersectionEdge : public Edge
 {
 public:
     IntersectionEdge() {}
-    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : Edge(s, e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
+    IntersectionEdge(IntersectionNode* s, IntersectionNode* e, BezierCurve shape, short int numLanes, short int speedLimit, short int priority) : s(s), e(e), shape(shape), numlanes(numLanes), speedlimit(speedLimit), priority(priority) {}
     
     BezierCurve getShape() const {return this->shape;}
     short int getNumLanes() const {return this->numlanes;}
@@ -285,10 +285,6 @@ public:
     void setNodeList(std::vector<IntersectionNode*> nodelist) {nodeList = nodelist;}
     void setEdgeList(std::vector<IntersectionEdge> edgelist) {edgeList = edgelist;}
 
-    ~IntersectionRoute() {
-        for (IntersectionNode* n : this->nodeList) {delete n;}
-    }
-
 private:
     std::vector<IntersectionNode*> nodeList;
     std::vector<IntersectionEdge> edgeList;
@@ -339,9 +335,19 @@ public:
     IntersectionScenario(std::vector<ScenarioNode*> nodes, std::vector<ScenarioEdge> edges) : nodes(nodes), edges(edges) {}
     IntersectionScenario(std::string xmlFilePath);
 
+    friend void swap(IntersectionScenario& first, IntersectionScenario& second)
+    {
+        std::swap(first.edges, second.edges);
+        if ( first.nodes.size() != second.nodes.size() ) throw 1;
+        for (int i = 0; i < first.nodes.size(); i++)
+            std::swap(first.nodes[i], second.nodes[i]);
+    }
+
     ~IntersectionScenario() {
         for (ScenarioNode* node : this->nodes) {delete node;}
     }
+    IntersectionScenario(const IntersectionScenario& other);  // Copy constructor.
+    IntersectionScenario& operator=(IntersectionScenario other);  // Copy assignment operator.
 
     std::vector<ScenarioNode*> getNodes() const {return this->nodes;}
     std::vector<ScenarioEdge> getEdges() const {return this->edges;}
@@ -477,6 +483,24 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 }
 
 
+IntersectionScenario::IntersectionScenario(const IntersectionScenario& other)
+{
+    edges = other.edges;
+    for (ScenarioNode* node : other.nodes)
+    {
+        nodes.push_back(new ScenarioNode(*node));
+    }
+}
+
+
+IntersectionScenario& IntersectionScenario::operator=(IntersectionScenario other)
+{
+    for (int i = 0; i < other.nodes.size(); i++) nodes.push_back(nullptr);
+    swap(*this, other);
+    return *this;
+}
+
+
 void Intersection::simulate(BACKENDS::BACKENDS_ back) const
 {
     if (back == BACKENDS::SUMO)
@@ -508,11 +532,32 @@ std::vector<IntersectionRoute*> Intersection::getRoutes()
 }
 
 
-void Intersection::getMetric(METRICS::METRICS_ metric) const
+double Intersection::getMetric(METRICS::METRICS_ metric)
 {
-    if (!isValid) return 1000000;
+    if (!isValid) return 1000000.0;
     // TODO: implement fancy sumo stuff.
-    return 0;
+    return 0.0;
+}
+
+
+std::vector<IntersectionNode*> Intersection::getUniqueNodes() const
+{
+    return std::vector<IntersectionNode*>();
+}
+
+
+std::vector<IntersectionEdge*> Intersection::getUniqueEdges() const
+{
+    std::vector<IntersectionEdge*> uniqueEdges;
+    for (const IntersectionRoute& route : routes)
+    {
+        for (IntersectionEdge& edge : route.getEdgeList())
+        {
+            if (std::find(uniqueEdges.begin(), uniqueEdges.end(), &edge) == uniqueEdges.end())
+                uniqueEdges.push_back(&edge);
+        }
+    }
+    return uniqueEdges;
 }
 
 
@@ -562,9 +607,11 @@ std::string Intersection::getEdgeXML() const
     std::map<IntersectionNode*, int> sumoNodeIDs;
     std::vector<IntersectionEdge> edges;
 
+    std::vector<IntersectionEdge> route_edges;
     for (IntersectionRoute route : routes)
     {
-        edges.insert(edges.end(), route.getEdgeList().begin(), route.getEdgeList().end());
+        route_edges = route.getEdgeList();
+        edges.insert(edges.end(), route_edges.begin(), route_edges.end());
         std::vector<IntersectionNode*> routeNodes = route.getNodeList();
 
         for (int i = 0; i < routeNodes.size(); i++)

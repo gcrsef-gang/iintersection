@@ -17,3 +17,5 @@ test.cpp
 test.py
 test.xml
 test_cython/
+tests/core
+tests/tmp/
