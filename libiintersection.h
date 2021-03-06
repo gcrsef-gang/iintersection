@@ -55,7 +55,7 @@ class IntersectionRoute;
 
 
 // Tracking current max node ID
-static unsigned short int CURRENT_UUID_MAX = 0;
+static unsigned short int CURRENT_UUID_NODE_MAX = 0;
 
 
 static const short int BEZIER_SAMPLES = 500;
@@ -64,10 +64,10 @@ static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 
 namespace METRICS {enum METRICS_ {SAFETY, EMISSIONS, EFFICIENCY};}
 namespace BACKENDS {enum BACKENDS_ {SUMO, VISSIM, CITYFLOW};}
-namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK, IDK};}
+namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK};}
 namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
 
-const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}, {"idk", VEHICLETYPES::IDK}};
+const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}};
 const std::map<JUNCTIONTYPES::JUNCTIONTYPES_, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 
@@ -182,7 +182,7 @@ friend class IntersectionEdge;
 class Node
 {
 public:
-    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_MAX;}
+    Node(Point3d loc) : loc(loc) {this->UUID = ++CURRENT_UUID_NODE_MAX;}
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() const {return this->UUID;}
 
@@ -290,44 +290,6 @@ private:
     std::vector<IntersectionEdge> edgeList;
 };
 
-
-class Intersection
-{
-public:
-    Intersection() {}
-    Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
-
-    void simulate(BACKENDS::BACKENDS_) const;
-    void updateMetrics(BACKENDS::BACKENDS_);
-    void markInvalid() {isValid = false;}
-
-    double getMetric(METRICS::METRICS_);
-    std::vector<IntersectionRoute*> getRoutes();
-    std::vector<IntersectionNode*> getUniqueNodes() const;
-    std::vector<IntersectionEdge*> getUniqueEdges() const;
-    std::string getEdgeXML() const;
-    std::string getNodeXML() const;
-
-private:
-    bool isValid;
-    std::vector<IntersectionRoute> routes;
-    std::map<METRICS::METRICS_, double> currentMetrics;
-    const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
-};
-
-
-const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
-{
-    {
-        BACKENDS::SUMO, {
-            {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
-            {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
-            {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
-        }
-    }
-};
-
-
 class IntersectionScenario
 {
 public:
@@ -355,6 +317,43 @@ public:
 private:
     std::vector<ScenarioNode*> nodes;
     std::vector<ScenarioEdge> edges;
+};
+
+class Intersection
+{
+public:
+    Intersection() {}
+    Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
+
+    void simulate(BACKENDS::BACKENDS_) const;
+    void updateMetrics(BACKENDS::BACKENDS_);
+    void markInvalid() {isValid = false;}
+
+    double getMetric(METRICS::METRICS_);
+    std::vector<IntersectionRoute*> getRoutes();
+    std::vector<IntersectionNode*> getUniqueNodes() const;
+    std::vector<IntersectionEdge*> getUniqueEdges() const;
+    std::string getEdgeXML() const;
+    std::string getNodeXML() const;
+    std::string getRouteXML(ii::IntersectionScenario intersectionScenario) const;
+
+private:
+    bool isValid;
+    std::vector<IntersectionRoute> routes;
+    std::map<METRICS::METRICS_, double> currentMetrics;
+    const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
+};
+
+
+const std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > Intersection::evaluations = 
+{
+    {
+        BACKENDS::SUMO, {
+            {METRICS::EFFICIENCY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEfficiency)},
+            {METRICS::SAFETY, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionSafety)},
+            {METRICS::EMISSIONS, static_cast<IntersectionEvalFunc>(&SumoInterface::updateIntersectionEmissions)}
+        }
+    }
 };
 
 
@@ -570,13 +569,14 @@ std::vector<IntersectionEdge*> Intersection::getUniqueEdges() const
 std::string Intersection::getNodeXML() const
 {
     std::vector<IntersectionNode*> nodes;
-    for (IntersectionRoute route : routes)
-    {
-        for (IntersectionNode* node : route.getNodeList())
-        {
-            nodes.push_back(node);
-        }
-    }
+    // for (IntersectionRoute route : routes)
+    // {
+    //     for (IntersectionNode* node : route.getNodeList())
+    //     {
+    //         nodes.push_back(node);
+    //     }
+    // }
+    nodes = getUniqueNodes();
 
     std::string xmlOutput = "<nodes>\n";
     std::stringstream nodeTag;
@@ -587,9 +587,9 @@ std::string Intersection::getNodeXML() const
 
         nodeTag << "\t<node ";
         nodeTag << "id=\"" << i << "\" ";
-        nodeTag << "x=\"" << nodeLoc->x() << "\" ";
-        nodeTag << "y=\"" << nodeLoc->y() << "\" ";
-        nodeTag << "z=\"" << nodeLoc->z() << "\" ";
+        nodeTag << "x=\"" << nodeLoc->x()/10 << "\" ";
+        nodeTag << "y=\"" << nodeLoc->y()/10 << "\" ";
+        nodeTag << "z=\"" << nodeLoc->z()/10 << "\" ";
         nodeTag << "type=\"" << JUNCTIONTYPES_NAMES.at(nodes[i]->getJunctionType()) << "\"/>\n";
 
         xmlOutput += nodeTag.str();
@@ -605,13 +605,18 @@ std::string Intersection::getEdgeXML() const
 {
     // Node IDs as they will be in the node file generated by getNodeXML.
     std::map<IntersectionNode*, int> sumoNodeIDs;
-    std::vector<IntersectionEdge> edges;
+    std::vector<IntersectionEdge*> edges;
+    edges = getUniqueEdges();
 
     std::vector<IntersectionEdge> route_edges;
     for (IntersectionRoute route : routes)
     {
+<<<<<<< HEAD
         route_edges = route.getEdgeList();
         edges.insert(edges.end(), route_edges.begin(), route_edges.end());
+=======
+        // edges.insert(edges.end(), route.getEdgeList().begin(), route.getEdgeList().end());
+>>>>>>> 6b58b5947338a72d0c1ca3431415a28b4a5894f3
         std::vector<IntersectionNode*> routeNodes = route.getNodeList();
 
         for (int i = 0; i < routeNodes.size(); i++)
@@ -626,21 +631,21 @@ std::string Intersection::getEdgeXML() const
     for (int i = 0; i < edges.size(); i++)
     {
         edgeTag << "\t<edge id=\"" << i << "e\" ";
-        edgeTag << "from=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getStartNode())] << "\" ";
-        edgeTag << "to=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i].getEndNode())] << "\" ";
-        edgeTag << "priority=\"" << edges[i].getPriority() << "\" ";
-        edgeTag << "numLanes=\"" << edges[i].getNumLanes() << "\" ";
-        edgeTag << "speed=\"" << edges[i].getSpeedLimit() << "\" ";
+        edgeTag << "from=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i]->getStartNode())] << "\" ";
+        edgeTag << "to=\"" << sumoNodeIDs[static_cast<IntersectionNode*>(edges[i]->getEndNode())] << "\" ";
+        edgeTag << "priority=\"" << edges[i]->getPriority() << "\" ";
+        edgeTag << "numLanes=\"" << edges[i]->getNumLanes() << "\" ";
+        edgeTag << "speed=\"" << edges[i]->getSpeedLimit() << "\" ";
 
         edgeTag << "shape=\"";
     
-        std::vector<Point3d> sampledPoints = edges[i].getShape().rasterize(BEZIER_SAMPLES);
+        std::vector<Point3d> sampledPoints = edges[i]->getShape().rasterize(BEZIER_SAMPLES);
 
         for (int p = 0; p < sampledPoints.size(); p++)
         {
-            edgeTag << std::to_string(sampledPoints[p].x()) << ","
-                    << std::to_string(sampledPoints[p].y()) << ","
-                    << std::to_string(sampledPoints[p].z());
+            edgeTag << std::to_string(sampledPoints[p].x()/10) << ","
+                    << std::to_string(sampledPoints[p].y()/10) << ","
+                    << std::to_string(sampledPoints[p].z()/10);
 
             if (p != sampledPoints.size() - 1) {edgeTag << " ";}
         }
@@ -655,6 +660,119 @@ std::string Intersection::getEdgeXML() const
     return xmlOutput;
 }
 
+std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario) const 
+{
+    std::vector<IntersectionEdge*> edges;
+    edges = getUniqueEdges();
+
+    std::string xmlOutput = "<routes>\n";
+    xmlOutput += "vType id=\"car\" length=\"1.6\" width=\"1.8\" height=\"1.5\" ";
+    xmlOutput += "accel=\"2.9\" decel=\"7.5\" emergencyDecel=\"9\" maxSpeed=\"55.55\" ";
+    xmlOutput += "emissionClass=\"PC_G_EU4\" speedDev\"0.1\" />\n";
+    
+    xmlOutput += "vType id=\"truck\" length=\"7.1\" width=\"2.4\" height=\"2.4\" ";
+    xmlOutput += "accel=\"1.3\" decel=\"4\" emergencyDecel=\"7\" maxSpeed=\"36\" ";
+    xmlOutput += "emissionClass=\"HDV\" speedDev\"0.05\" />\n";
+
+    std::vector<ScenarioEdge> scenarioEdges = intersectionScenario.getEdges();
+
+    std::vector<std::string> vehicleTypes;
+    vehicleTypes.push_back("car");
+    vehicleTypes.push_back("truck");
+
+    for (int i = 0; i < routes.size(); i++)
+    {
+        std::vector<IntersectionEdge> routeEdges = routes[i].getEdgeList();
+
+        for (std::string vehicleType : vehicleTypes) 
+        {
+            std::stringstream flowTag;
+            flowTag << "\t<flow ";
+            flowTag << "id=\"flow_" << i << "\" ";
+            flowTag << "begin=\"0.00\" ";
+
+            std::string viaTag = "via\"";
+            for (int j = 0; j < routeEdges.size(); j++) {
+                if (j == 0) {
+                    for (int k = 0; k < edges.size(); k++) {
+                        IntersectionEdge* checkEdge = edges[k];
+                        IntersectionEdge routeEdge = routeEdges[j];
+                        if (checkEdge->getStartNode()->getID() == routeEdge.getStartNode()->getID()) {
+                            if (checkEdge->getEndNode()->getID() == routeEdge.getEndNode()->getID()) {
+                            flowTag << "from=\"" << k << "\" ";
+                            break;
+                            }
+                        }
+                    }
+                }
+                else if (j == routeEdges.size()-1) {
+                    for (int k = 0; k < edges.size(); k++) {
+                        IntersectionEdge* checkEdge = edges[k];
+                        IntersectionEdge routeEdge = routeEdges[j];
+                        if (checkEdge->getStartNode()->getID() == routeEdge.getStartNode()->getID()) {
+                            if (checkEdge->getEndNode()->getID() == routeEdge.getEndNode()->getID()) {
+                            flowTag << "to=\"" << k << "\" ";
+                            break;
+                            }
+                        }
+                    }
+                }
+                else if (j == 1) {
+                    for (int k = 0; k < edges.size(); k++) {
+                        IntersectionEdge* checkEdge = edges[k];
+                        IntersectionEdge routeEdge = routeEdges[j];
+                        if (checkEdge->getStartNode()->getID() == routeEdge.getStartNode()->getID()) {
+                            if (checkEdge->getEndNode()->getID() == routeEdge.getEndNode()->getID()) {
+                            viaTag += k;
+                            break;
+                            }
+                        }
+                    }
+                }
+                else {
+                    for (int k = 0; k < edges.size(); k++) {
+                        IntersectionEdge* checkEdge = edges[k];
+                        IntersectionEdge routeEdge = routeEdges[j];
+                        if (checkEdge->getStartNode()->getID() == routeEdge.getStartNode()->getID()) {
+                            if (checkEdge->getEndNode()->getID() == routeEdge.getEndNode()->getID()) {
+                            viaTag += " " + k;
+                            break;
+                            }
+                        }
+                    }
+                }
+            }
+            viaTag += "\" ";
+            flowTag << viaTag;
+            flowTag << "end=\"604800.00\" ";
+
+            unsigned short int startID = routeEdges.at(0).getStartNode()->getID();
+            unsigned short int endID = routeEdges.at(routeEdges.size()-1).getEndNode()->getID();
+
+            std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
+            for (ScenarioEdge scenarioEdge : scenarioEdges) {
+                unsigned short int scenarioStartID = scenarioEdge.getStartNode()->getID();
+                if (startID == scenarioStartID) {
+                    unsigned short int scenarioEndID = scenarioEdge.getEndNode()->getID();
+                    if (endID == scenarioEndID) {
+                        demand = scenarioEdge.getDemand();
+                    }
+                }
+            }
+
+            VEHICLETYPES::VEHICLETYPES_ vehicleTypeEnum = VEHICLETYPES_INDICES.at(vehicleType);
+            short int typeDemand = demand[vehicleTypeEnum];
+            flowTag << "vehsPerHour=\"" << typeDemand << "\" ";
+            flowTag << "/>\n";
+
+            xmlOutput += flowTag.str();
+            flowTag.clear();
+        }
+    }
+
+    xmlOutput += "</routes>";
+    return xmlOutput;
+}
 
 
 /**

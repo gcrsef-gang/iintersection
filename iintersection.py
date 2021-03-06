@@ -5,6 +5,7 @@ given traffic scenario.
 
 import argparse
 import math
+import subprocess
 
 import numpy as np
 import scipy.optimize
@@ -26,6 +27,8 @@ MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
 GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
+
+SIMULATION_TIME = 604800
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
@@ -37,7 +40,7 @@ MAX_PRIORITY = 10
 LANE_WIDTH = 37
 
 # Clearance Height + the thickness of the road (decimeters)
-CLEARANCE_HEIGHT = 50
+CLEARANCE_HEIGHT = 60
 POSITION_MUTATION_FACTOR = 0.05
 MUTATION_PROB = 0.1
 
@@ -810,7 +813,7 @@ def mutate(solution):
         route.setEdgeList(new_edges)
 
 
-def evaluate_fitness(solution):
+def evaluate_fitness(solution, intersectionscenario=None):
     """Evaluates the fitness of the given solution.
 
     The solution's fitness metrics are now cached, so that the getMetrics() method will return
@@ -830,7 +833,39 @@ def evaluate_fitness(solution):
     if is_valid:
         # traci is being used
         if BACKEND == BACKENDS["traci"]:
-            pass
+            with open("traci/traci.nod.xml", "w+") as f:
+                f.write(intersection.getNodeXML())
+            with open("traci/traci.edg.xml", "w+") as f:
+                f.write(intersection.getEdgeXML())
+            subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
+            with open("traci/traci.rou.xml", "w+") as f:
+                f.write(intersection.getRouteXML(intersectionscenario))
+
+            traci.start(["sumo", "-c", "traci/traci.sumocfg"])
+            step = 0
+            simulation_emissions = 0
+            simulation_collisions = 0
+            simulation_travel_times = 0
+            while step < SIMULATION_TIME:
+                traci.simulationStep()
+
+                emissions_sum = 0
+                vehicle_id_list = traci.vehicle.getIDList()
+                for vehicle_id in vehicle_id_list:
+                    emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
+
+                collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
+
+                travel_times_sum = 0
+                edge_ids = traci.edge.getIDList()
+                for edge_id in edge_ids:
+                    travel_times_sum += traci.edge.getTraveltime(edge_id)
+                
+                
+                simulation_emissions += emissions_sum
+                simulation_collisions += collisions_num
+                simulation_travel_times += travel_times_sum
+            return simulation_collisions, simulation_travel_times, simulation_emissions
         solution.simulate(BACKEND)
         solution.updateMetrics(BACKEND)
     else:
@@ -877,7 +912,7 @@ def optimize(input_scenario):
     # Evaluate all solutions in the grid.
     for row in population:
         for solution in row:
-            evaluate_fitness(solution)
+            evaluate_fitness(solution, input_scenario)
     num_evaluations = POPULATION_SIZE
 
     # Mainloop:
@@ -892,7 +927,7 @@ def optimize(input_scenario):
             mutate(offspring)
 
             # Choose an individual.
-            evaluate_fitness(offspring)
+            evaluate_fitness(offspring, input_scenario)
             num_evaluations += 1
             current_individual = population[pos[0]][pos[1]]
             replacement_solution, dominant = _get_dominant_solution(current_individual, offspring)
