@@ -1,33 +1,31 @@
 <scenario name="ny-7-787">
     <nodes>
-        <node id="1" x="0" y="0" z="0">
-        <node id="2" x="-6186" y="5914" z="84">
-        <node id="3" x="-1343" y="8000" z="0">
-        <node id="4" x="4157" y="3543" z="84">
-        <node id="5" x="-157" y="0" z="0">
-        <node id="6" x="-6114" y="6157" z="84">
-        <node id="7" x="-1214" y="8086" z="0">
-        <node id="8" x="4157" y="3371" z="84">
+        <node id="1" x="0" y="0" z="0" />
+        <node id="2" x="-6186" y="5914" z="84" />
+        <node id="3" x="-1343" y="8000" z="0" />
+        <node id="4" x="4157" y="3543" z="84" />
+        <node id="5" x="-157" y="0" z="0" />
+        <node id="6" x="-6114" y="6157" z="84" />
+        <node id="7" x="-1214" y="8086" z="0" />
+        <node id="8" x="4157" y="3371" z="84" />
     </nodes>
     <edges>
         <!-- Lefts  -->
-        <edge from="1" to="6" truck_demand="91" car_demand="1724">
-        <edge from="2" to="7" truck_demand="13" car_demand="254">
-        <edge from="3" to="8" truck_demand="9" car_demand="179">
-        <edge from="4" to="5" truck_demand="166" car_demand="2601">
+        <edge from="1" to="6" truck_demand="91" car_demand="1724" />
+        <edge from="2" to="7" truck_demand="13" car_demand="254" />
+        <edge from="3" to="8" truck_demand="9" car_demand="179" />
+        <edge from="4" to="5" truck_demand="166" car_demand="2601" />
 
         <!-- Straights -->
-        <edge from="1" to="7" truck_demand="100" car_demand="1901">
-        <edge from="2" to="8" truck_demand="120" car_demand="2271">
-        <edge from="3" to="5" truck_demand="100" car_demand="1904">
-        <edge from="4" to="6" truck_demand="123" car_demand="2337">
+        <edge from="1" to="7" truck_demand="100" car_demand="1901" />
+        <edge from="2" to="8" truck_demand="120" car_demand="2271" />
+        <edge from="3" to="5" truck_demand="100" car_demand="1904" />
+        <edge from="4" to="6" truck_demand="123" car_demand="2337" />
 
         <!-- Rights  -->
-        <edge from="1" to="8" truck_demand="103" car_demand="1046">
-        <edge from="2" to="5" truck_demand="154" car_demand="1560">
-        <edge from="3" to="6" truck_demand="19" car_demand="360">
-        <edge from="4" to="7" truck_demand="16" car_demand="311">
+        <edge from="1" to="8" truck_demand="103" car_demand="1046" />
+        <edge from="2" to="5" truck_demand="154" car_demand="1560" />
+        <edge from="3" to="6" truck_demand="19" car_demand="360" />
+        <edge from="4" to="7" truck_demand="16" car_demand="311" />
     </edges>
 </scenario>
-    
-    </edges>
