@@ -29,5 +29,3 @@
         <edge from="4" to="7" truck_demand="16" car_demand="311">
     </edges>
 </scenario>
-    
-    </edges>
