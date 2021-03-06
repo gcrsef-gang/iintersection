@@ -45,6 +45,7 @@ cdef extern from "libiintersection.h" namespace "ii":
     cdef cppclass Intersection:
         Intersection()
         Intersection(vector[IntersectionRoute]) except +
+        Intersection(string solFilePath) except +
         vector[intersectionnodepointer] getUniqueNodes()
         vector[intersectionedgepointer] getUniqueEdges()
         void simulate(BACKENDS_)
@@ -123,7 +124,7 @@ cdef extern from "libiintersection.h" namespace "ii":
 
 PY_METRICS = {"safety": 0, "emissions": 1, "efficiency": 2}
 PY_BACKENDS = {"sumo": 0, "vissim": 1, "cityflow": 2}
-PY_VEHICLETYPES = {"car": 0, "truck": 1, "idk": 2}
+PY_VEHICLETYPES = {"car": 0, "truck": 1}
 PY_JUNCTIONTYPES = {"priority": 0, "traffic_light": 1, "right_before_left": 2, "unregulated": 3, "priority_stop": 4, "traffic_light_unregulated": 5, "allway_stop": 6, "traffic_light_on_red": 7}
 
 
@@ -153,12 +154,19 @@ cdef class PyIntersectionScenario:
 cdef class PyIntersection:
     cdef Intersection c_intersection
 
-    def __cinit__(self, pyroutes):
+    def __cinit__(self, pyroutes=None, xmlFilePath=None):
         cdef vector[IntersectionRoute] routes
         cdef PyIntersectionRoute route
-        for route in pyroutes:
-            routes.push_back(route.c_intersectionroute)
+        if pyroutes:
+            for route in pyroutes:
+                routes.push_back(route.c_intersectionroute)
         self.c_intersection = Intersection(routes)
+
+    @staticmethod
+    cdef PyIntersection fromSolFile(string solFilePath):
+        cdef PyIntersection intersection = PyIntersection()
+        intersection.c_intersection = Intersection(solFilePath)
+        return intersection    
 
     def getUniqueNodes(self):
         cdef vector[intersectionnodepointer] c_unique_nodes = self.c_intersection.getUniqueNodes()

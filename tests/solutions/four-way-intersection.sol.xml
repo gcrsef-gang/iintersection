@@ -1,42 +1,42 @@
 <scenario name="four-way-intersection">
     <nodes>
-        <node id="1" x="-1" y="5" z="0" />
-        <node id="2" x="1" y="5" z="0" />
-        <node id="3" x="-5" y="1" z="0" />
-        <node id="4" x="-5" y="-1" z="0" />
-        <node id="5" x="5" y="1" z="0" />
-        <node id="6" x="5" y="-1" z="0" />
-        <node id="7" x="1" y="-5" z="0" />
-        <node id="8" x="-1" y="-5" z="0" />
+        <node id="1" x="-1" y="5" z="0" type="unregulated" />
+        <node id="2" x="1" y="5" z="0" type="unregulated"/>
+        <node id="3" x="-5" y="1" z="0" type="unregulated"/>
+        <node id="4" x="-5" y="-1" z="0" type="unregulated"/>
+        <node id="5" x="5" y="1" z="0" type="unregulated"/>
+        <node id="6" x="5" y="-1" z="0" type="unregulated"/>
+        <node id="7" x="1" y="-5" z="0" type="unregulated"/>
+        <node id="8" x="-1" y="-5" z="0" type="unregulated"/>
     </nodes>
 
     <edges>
-        <edge id="1" from="1" to="3" handles="0,0,0 0,0,0" />
-        <edge id="2" from="1" to="6" handles="0,0,0 0,0,0" />
-        <edge id="3" from="1" to="8" handles="0,0,0 0,0,0" />
-        <edge id="4" from="5" to="2" handles="0,0,0 0,0,0" />
-        <edge id="5" from="5" to="3" handles="0,0,0 0,0,0" />
-        <edge id="6" from="5" to="8" handles="0,0,0 0,0,0" />
-        <edge id="7" from="7" to="2" handles="0,0,0 0,0,0" />
-        <edge id="8" from="7" to="3" handles="0,0,0 0,0,0" />
-        <edge id="9" from="7" to="6" handles="0,0,0 0,0,0" />
-        <edge id="10" from="4" to="2" handles="0,0,0 0,0,0" />
-        <edge id="11" from="4" to="6" handles="0,0,0 0,0,0" />
-        <edge id="12" from="4" to="8" handles="0,0,0 0,0,0" />
+        <edge id="1" from="1" to="3" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="2" from="1" to="6" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="3" from="1" to="8" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="4" from="5" to="2" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="5" from="5" to="3" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="6" from="5" to="8" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="7" from="7" to="2" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="8" from="7" to="3" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="9" from="7" to="6" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="10" from="4" to="2" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="11" from="4" to="6" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
+        <edge id="12" from="4" to="8" priority="-1" numLanes="1" speed="13.89" handles="0,0,0 0,0,0" />
     </edges>
 
     <routes>
-        <route edges="1 2" truck_demand="50" car_demand="50"/>
-        <route edges="2" truck_demand="50" car_demand="50"/>
-        <route edges="3" truck_demand="50" car_demand="50"/>
-        <route edges="4" truck_demand="50" car_demand="50"/>
-        <route edges="5" truck_demand="50" car_demand="50"/>
-        <route edges="6" truck_demand="50" car_demand="50"/>
-        <route edges="7" truck_demand="50" car_demand="50"/>
-        <route edges="8" truck_demand="50" car_demand="50"/>
-        <route edges="9" truck_demand="50" car_demand="50"/>
-        <route edges="10" truck_demand="50" car_demand="50"/>
-        <route edges="11" truck_demand="50" car_demand="50"/>
-        <route edges="12" truck_demand="50" car_demand="50"/>
+        <route edges="1 2" />
+        <route edges="2" />
+        <route edges="3" />
+        <route edges="4"  />
+        <route edges="5" />
+        <route edges="6" />
+        <route edges="7" />
+        <route edges="8" />
+        <route edges="9" />
+        <route edges="10"  />
+        <route edges="11" />
+        <route edges="12" />
     </routes>
 </scenario>
