@@ -10,8 +10,8 @@ import iintersection as ii
 
 
 SCENARIO_FILES = f"{os.path.abspath(os.path.dirname(__file__))}/scenarios"
-INIT_GEN_SCENARIOS = ["four-way-intersection.xml", "ny-7-787.xml", "troy-schenectady-northway.xml",
-                      "two-way-intersection.xml"]
+INIT_GEN_SCENARIOS = ["ny-7-787.sce.xml", "troy-schenectady-northway.sce.xml",
+                      "two-way-intersection.sce.xml"]
 
 
 def test_generate_initial_population():
@@ -34,12 +34,12 @@ def test_generate_initial_population():
             for f in os.listdir(scenario_dir):
                 os.remove(f"{scenario_dir}/{f}")
 
-        print(f"Building scenario for {scenario_file}... ", end="")
-        print("done")
+        print(f"Building scenario for {scenario_file}... ")
         scenario = ii.IntersectionScenario(f"{SCENARIO_FILES}/{scenario_file}")
-        print("Generating population... ", end="")
         print("done")
+        print(f"Generating population for {scenario_file}... ")
         init_pop = ii.generate_inital_population(scenario)
+        print("done")
         i = 0
         for i in range(ii.POPULATION_SIZE):
             intersection = init_pop[i // ii.GRID_SIDELEN][i % ii.GRID_SIDELEN]

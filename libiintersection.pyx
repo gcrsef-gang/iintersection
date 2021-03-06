@@ -65,7 +65,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         IntersectionRoute()
         IntersectionRoute(vector[intersectionnodepointer] nodeList, vector[IntersectionEdge] edgeList) except +
         vector[intersectionnodepointer] getNodeList()
-        vector[IntersectionEdge] getEdgeList()
+        vector[intersectionedgepointer] getEdgeList()
         void setNodeList(vector[intersectionnodepointer] nodelist)
         void setEdgeList(vector[IntersectionEdge] edgelist)
 
@@ -227,10 +227,11 @@ cdef class PyIntersectionRoute:
         return intersection_nodes
 
     def getEdgeList(self):
-        cdef vector[IntersectionEdge] intersectionedgevector = self.c_intersectionroute.getEdgeList()
+        cdef vector[intersectionedgepointer] intersectionedgevector = self.c_intersectionroute.getEdgeList()
         pyvector = []
+        cdef intersectionedgepointer intersectionedge
         for intersectionedge in intersectionedgevector:
-            pyvector.append(PyIntersectionEdge.fromCppObject(intersectionedge))
+            pyvector.append(PyIntersectionEdgePointer.fromCppPointer(intersectionedge))
         return pyvector
 
     def setNodeList(self, nodelist):
@@ -409,10 +410,8 @@ cdef class PyIntersectionEdge:
         for i in range(self_handles.size()):
             self_handle = self_handles[i]
             other_handle = other_handles[i]
-            if (
-                    self_handle.x() != other_handle.x()
-                 or self_handle.y() != other_handle.y()
-                 or self_handle.z() != other_handle.z()):
+            if (self_handle.x() != other_handle.x() or self_handle.y() != other_handle.y() 
+                    or self_handle.z() != other_handle.z()):
                 return False
         return True
 
@@ -519,9 +518,9 @@ cdef class PyIntersectionRoutePointer:
         return nodes
 
     def getEdgeList(self):
-        cdef vector[IntersectionEdge] c_edges = deref(self.c_intersectionroutepointer).getEdgeList()
+        cdef vector[intersectionedgepointer] c_edges = deref(self.c_intersectionroutepointer).getEdgeList()
         edges = []
-        cdef IntersectionEdge edge
+        cdef intersectionedgepointer edge
         for edge in c_edges:
-            edges.append(PyIntersectionEdge.fromCppObject(edge))
+            edges.append(PyIntersectionEdgePointer.fromCppPointer(edge))
         return edges

@@ -470,8 +470,7 @@ def generate_inital_population(input_scenario):
                 intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
 
             intersection = Intersection(intersection_routes)
-            # if _check_edge_intersections(intersection):
-            if True:
+            if _check_edge_intersections(intersection):
                 # Create a new row of intersections.
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
