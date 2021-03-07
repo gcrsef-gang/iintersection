@@ -192,9 +192,9 @@ private:
     void setStartNode(std::shared_ptr<IntersectionNode> node) {s = node;}
     void setEndNode(std::shared_ptr<IntersectionNode> node) {e = node;}
     
-    std::vector<Point3d> handles;
     std::shared_ptr<IntersectionNode> s;
     std::shared_ptr<IntersectionNode> e;
+    std::vector<Point3d> handles;
 
 friend class IntersectionEdge;
 };
@@ -340,8 +340,9 @@ public:
     std::string getRouteXML(IntersectionScenario intersectionScenario);
 
 private:
-    bool isValid;
     std::vector<IntersectionRoute> routes;
+    bool isValid;
+    
     std::map<METRICS::METRICS_, double> currentMetrics;
     const static std::map<BACKENDS::BACKENDS_, std::map<METRICS::METRICS_, IntersectionEvalFunc> > evaluations;
 };
@@ -375,6 +376,41 @@ private:
 };
 
 
+std::vector<std::string> Split(std::string s, std::string delimiter)
+{
+    std::vector<std::string> list;
+    std::string copiedString = s;
+    size_t pos_start = 0;
+    std::string token;
+    
+    while ((pos_start = copiedString.find(delimiter)) != std::string::npos) {
+        token = copiedString.substr(0, pos_start);
+        list.push_back(token);
+        copiedString.erase(0, pos_start + delimiter.length());
+    }
+
+    list.push_back(copiedString);
+    return list;
+}
+
+
+double GetDistance(Point3d a, Point3d b)
+{
+    return std::sqrt(std::pow(b.x() - a.x(), 2) + std::pow(b.y() - a.y(), 2) + std::pow(b.z() - a.z(), 2));
+}
+
+
+double LineDistance(std::vector<Point3d> points)
+{
+    double sum = 0;
+    for (std::size_t i = 0; i < points.size() - 1; i++)
+    {
+        sum += GetDistance(points[i], points[i+1]);
+    }
+    return sum;
+}
+
+
 std::vector<Point3d> BezierCurve::rasterize(int resolution)
 {
     resolution--;
@@ -397,7 +433,7 @@ unsigned int Choose(unsigned int n, unsigned int k)
     if (k == 0) return 1;
 
     unsigned int result = n;
-    for (int i = 2; i <= k; ++i)
+    for (unsigned int i = 2; i <= k; ++i)
     {
         result *= (n - i + 1);
         result /= i;
@@ -406,45 +442,13 @@ unsigned int Choose(unsigned int n, unsigned int k)
     return result;
 }
 
-std::vector<std::string> split(std::string s, std::string delimiter)
-{
-    std::vector<std::string> list;
-    std::string copiedString = s;
-    size_t pos_start = 0;
-    std::string token;
-    while ((pos_start = copiedString.find(delimiter)) != std::string::npos) {
-        token = copiedString.substr(0, pos_start);
-        list.push_back(token);
-        copiedString.erase(0, pos_start + delimiter.length());
-    }
-    list.push_back(copiedString);
-    return list;
-}
-
-
-double GetDistance(Point3d a, Point3d b)
-{
-    return std::sqrt(std::pow(b.x() - a.x(), 2) + std::pow(b.y() - a.y(), 2) + std::pow(b.z() - a.z(), 2));
-}
-
-
-double LineDistance(std::vector<Point3d> points)
-{
-    double sum = 0;
-    for (int i = 0; i < points.size() - 1; i++)
-    {
-        sum += GetDistance(points[i], points[i+1]);
-    }
-    return sum;
-}
-
 
 Point3d BezierCurve::evaluateParametric(double t)
 {
     double x = 0, y = 0, z = 0;
-    int n = this->handles.size() + 1;
+    std::size_t n = this->handles.size() + 1;
 
-    for (int i = 0; i <= n; i++)
+    for (std::size_t i = 0; i <= n; i++)
     {
         Point3d pnt(-1, -1, -1);
 
@@ -518,7 +522,7 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
         for (pugi::xml_attribute attr = xmlEdge.first_attribute(); attr; attr = attr.next_attribute())
         {
             std::string attrName = attr.name();
-            int pos = attrName.find("_demand");
+            std::size_t pos = attrName.find("_demand");
 
             // If attribute contains demand data.
             if (pos != std::string::npos)
@@ -533,11 +537,12 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     }
 }
 
+
 Intersection::Intersection(std::string solFilePath) 
 {
-    // Load document.
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
+
     if (!result)
     {
         std::cerr << "Could not parse XML." << std::endl;
@@ -548,28 +553,26 @@ Intersection::Intersection(std::string solFilePath)
 
     // Append nodes to vector.
     pugi::xml_node nodesList = xmlScenario.child("nodes");
+    std::vector<std::shared_ptr<IntersectionNode> > nodeVector;
+    std::map<std::string, std::shared_ptr<IntersectionNode> > nodeIDMap;
 
-    std::vector<IntersectionNode*> nodeVector;
-    std::map<std::string, IntersectionNode*> nodeIDMap;
     for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
     {
-        short int x = static_cast<short int>(xmlNode.attribute("x").as_int());
-        short int y = static_cast<short int>(xmlNode.attribute("y").as_int());
-        short int z = static_cast<short int>(xmlNode.attribute("z").as_int());
         std::string strtype = xmlNode.attribute("type").as_string();
         JUNCTIONTYPES::JUNCTIONTYPES_ type = JUNCTIONTYPES_INDICES.at(strtype);
-        IntersectionNode* node = new IntersectionNode({Point3d(x, y, z), type});
+        std::shared_ptr<IntersectionNode> node = std::make_shared<IntersectionNode>(Point3d(static_cast<short int>(xmlNode.attribute("x").as_int()), static_cast<short int>(xmlNode.attribute("y").as_int()), static_cast<short int>(xmlNode.attribute("z").as_int())), type);
         nodeIDMap[xmlNode.attribute("id").value()] = node;
         nodeVector.push_back(node);
     }
 
     std::vector<IntersectionEdge> edgeVector;
     std::map<std::string, IntersectionEdge> edgeIDMap;
+
     // Append edges to vector.
     pugi::xml_node edgesList = xmlScenario.child("edges");
     for (pugi::xml_node xmlEdge = edgesList.first_child(); xmlEdge; xmlEdge = xmlEdge.next_sibling())
     {
-        IntersectionNode* s, *e;
+        std::shared_ptr<IntersectionNode> s, e;
         s = nodeIDMap[xmlEdge.attribute("from").value()];
         e = nodeIDMap[xmlEdge.attribute("to").value()];
 
@@ -581,18 +584,21 @@ Intersection::Intersection(std::string solFilePath)
         if (handlesattr == xmlEdge.attribute("handles")) 
         {
             std::string handleString = xmlEdge.attribute("handles").as_string();
-            std::vector<std::string> pointsList = split(handleString, " ");
+            std::vector<std::string> pointsList = Split(handleString, " ");
             std::vector<Point3d> points;
-            for (std::string point : pointsList) {
+            for (std::string point : pointsList)
+            {
                 std::vector<short int> coords;
-                for (std::string coord : split(point, ",")) {
+                for (std::string coord : Split(point, ","))
+                {
                     coords.push_back(std::stoi(coord));
                 }
                 points.push_back(Point3d(coords));
             }
             handles = BezierCurve(s, e, points);
         }
-        else {
+        else
+        {
             handles = BezierCurve(s, e, {});
         }
 
@@ -602,27 +608,33 @@ Intersection::Intersection(std::string solFilePath)
     }
 
     std::vector<IntersectionRoute> routeVector;
-    // std::map<std::string, IntersectionRoute> routeIDMap;
+
     // Append routes to vector.
     pugi::xml_node routesList = xmlScenario.child("routes");
-    for (pugi::xml_node xmlRoute = routesList.first_child(); xmlRoute; xmlRoute = xmlRoute.next_sibling()) {
-        std::vector<std::string> edges = split(xmlRoute.attribute("edges").as_string(), " ");
-        std::vector<IntersectionNode*> routeNodes;
+    for (pugi::xml_node xmlRoute = routesList.first_child(); xmlRoute; xmlRoute = xmlRoute.next_sibling())
+    {
+        std::vector<std::string> edges = Split(xmlRoute.attribute("edges").as_string(), " ");
+        std::vector<std::shared_ptr<IntersectionNode> > routeNodes;
         std::vector<IntersectionEdge> routeEdges;
-        for (int i = 0; i < edges.size(); i++) {
-            if (i == 0) {
+        for (std::size_t i = 0; i < edges.size(); i++)
+        {
+            if (i == 0)
+            {
                 routeNodes.push_back(edgeIDMap[edges[i]].getStartNode());
                 routeNodes.push_back(edgeIDMap[edges[i]].getEndNode());
             }
-            else {
+            else
+            {
                 routeNodes.push_back(edgeIDMap[edges[i]].getEndNode());
             }
             routeEdges.push_back(edgeIDMap[edges[i]]);
         }
         routeVector.push_back(IntersectionRoute(routeNodes, routeEdges));
     }
+
     routes = routeVector;
 }
+
 
 void Intersection::Simulate(Intersection* int_, BACKENDS::BACKENDS_ back)
 {
@@ -653,7 +665,7 @@ double Intersection::getMetric(METRICS::METRICS_ metric)
 std::vector<IntersectionRoute*> Intersection::getRoutes()
 {
     std::vector<IntersectionRoute*> routePtrs;
-    for (int i = 0; i < routes.size(); i++)
+    for (std::size_t i = 0; i < routes.size(); i++)
     {
         routePtrs.push_back(&routes[i]);
     }
@@ -711,7 +723,7 @@ std::string Intersection::getNodeXML()
     std::string xmlOutput = "<nodes>\n";
     std::stringstream nodeTag;
 
-    for (int i = 0; i < nodes.size(); i++)
+    for (std::size_t i = 0; i < nodes.size(); i++)
     {
         Point3d* nodeLoc = nodes[i]->getLoc();
 
@@ -742,7 +754,7 @@ std::string Intersection::getEdgeXML()
     {
         std::vector<std::shared_ptr<IntersectionNode> > routeNodes = route.getNodeList();
 
-        for (int i = 0; i < routeNodes.size(); i++)
+        for (std::size_t i = 0; i < routeNodes.size(); i++)
         {
             sumoNodeIDs[routeNodes[i]] = i;
         }
@@ -751,7 +763,7 @@ std::string Intersection::getEdgeXML()
     std::string xmlOutput = "<edges>\n";
     std::stringstream edgeTag;
 
-    for (int i = 0; i < edges.size(); i++)
+    for (std::size_t i = 0; i < edges.size(); i++)
     {
         edgeTag << "\t<edge id=\"" << i << "e\" ";
         edgeTag << "from=\"" << sumoNodeIDs[edges[i]->getStartNode()] << "\" ";
@@ -764,7 +776,7 @@ std::string Intersection::getEdgeXML()
     
         std::vector<Point3d> sampledPoints = edges[i]->getShape().rasterize(BEZIER_SAMPLES);
 
-        for (int p = 0; p < sampledPoints.size(); p++)
+        for (std::size_t p = 0; p < sampledPoints.size(); p++)
         {
             edgeTag << std::to_string(sampledPoints[p].x()/10) << ","
                     << std::to_string(sampledPoints[p].y()/10) << ","
@@ -799,7 +811,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
     std::vector<std::string> vehicleTypes {"car", "truck"};
 
 
-    for (int i = 0; i < routes.size(); i++)
+    for (std::size_t i = 0; i < routes.size(); i++)
     {
         std::vector<IntersectionEdge*> routeEdges = routes[i].getEdgeList();
 
@@ -811,9 +823,9 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
             flowTag << "begin=\"0.00\" ";
 
             std::string viaTag = "via\"";
-            for (int j = 0; j < routeEdges.size(); j++) {
+            for (std::size_t j = 0; j < routeEdges.size(); j++) {
                 if (j == 0) {
-                    for (int k = 0; k < edges.size(); k++) {
+                    for (std::size_t k = 0; k < edges.size(); k++) {
                         IntersectionEdge* checkEdge = edges[k];
                         IntersectionEdge* routeEdge = routeEdges[j];
                         if (checkEdge->getStartNode()->getID() == routeEdge->getStartNode()->getID()) {
@@ -825,7 +837,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
                     }
                 }
                 else if (j == routeEdges.size()-1) {
-                    for (int k = 0; k < edges.size(); k++) {
+                    for (std::size_t k = 0; k < edges.size(); k++) {
                         IntersectionEdge* checkEdge = edges[k];
                         IntersectionEdge* routeEdge = routeEdges[j];
                         if (checkEdge->getStartNode()->getID() == routeEdge->getStartNode()->getID()) {
@@ -837,7 +849,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
                     }
                 }
                 else if (j == 1) {
-                    for (int k = 0; k < edges.size(); k++) {
+                    for (std::size_t k = 0; k < edges.size(); k++) {
                         IntersectionEdge* checkEdge = edges[k];
                         IntersectionEdge* routeEdge = routeEdges[j];
                         if (checkEdge->getStartNode()->getID() == routeEdge->getStartNode()->getID()) {
@@ -849,7 +861,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
                     }
                 }
                 else {
-                    for (int k = 0; k < edges.size(); k++) {
+                    for (std::size_t k = 0; k < edges.size(); k++) {
                         IntersectionEdge* checkEdge = edges[k];
                         IntersectionEdge* routeEdge = routeEdges[j];
                         if (checkEdge->getStartNode()->getID() == routeEdge->getStartNode()->getID()) {
@@ -861,6 +873,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
                     }
                 }
             }
+
             viaTag += "\" ";
             flowTag << viaTag;
             flowTag << "end=\"604800.00\" ";
@@ -870,12 +883,8 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
 
             std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
             for (ScenarioEdge scenarioEdge : scenarioEdges) {
-                unsigned short int scenarioStartID = scenarioEdge.getStartNode()->getID();
-                if (startID == scenarioStartID) {
-                    unsigned short int scenarioEndID = scenarioEdge.getEndNode()->getID();
-                    if (endID == scenarioEndID) {
-                        demand = scenarioEdge.getDemand();
-                    }
+                if (startID == scenarioEdge.getStartNode()->getID() && endID == scenarioEdge.getEndNode()->getID()) {
+                    demand = scenarioEdge.getDemand();
                 }
             }
 
