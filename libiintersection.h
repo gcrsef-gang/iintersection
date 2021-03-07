@@ -75,6 +75,7 @@ namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK};}
 namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
 
 const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}};
+const std::map<std::string, JUNCTIONTYPES::JUNCTIONTYPES_> JUNCTIONTYPES_INDICES = {{"priority", JUNCTIONTYPES::PRIORITY}, {"traffic_light", JUNCTIONTYPES::TRAFFIC_LIGHT}, {"right_before_left", JUNCTIONTYPES::RIGHT_BEFORE_LEFT}, {"unregulated", JUNCTIONTYPES::UNREGULATED}, {"priority_stop", JUNCTIONTYPES::PRIORITY_STOP}, {"traffic_light_unregulated", JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED}, {"allway_stop", JUNCTIONTYPES::ALLWAY_STOP}, {"traffic_light_on_red", JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED}};
 const std::map<JUNCTIONTYPES::JUNCTIONTYPES_, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
 
@@ -324,6 +325,7 @@ class Intersection
 public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
+    Intersection(std::string solFilePath);
 
     static void Simulate(Intersection*, BACKENDS::BACKENDS_);
     void updateMetrics(BACKENDS::BACKENDS_);
@@ -402,6 +404,21 @@ unsigned int Choose(unsigned int n, unsigned int k)
     }
 
     return result;
+}
+
+std::vector<std::string> split(std::string s, std::string delimiter)
+{
+    std::vector<std::string> list;
+    std::string copiedString = s;
+    size_t pos_start = 0;
+    std::string token;
+    while ((pos_start = copiedString.find(delimiter)) != std::string::npos) {
+        token = copiedString.substr(0, pos_start);
+        list.push_back(token);
+        copiedString.erase(0, pos_start + delimiter.length());
+    }
+    list.push_back(copiedString);
+    return list;
 }
 
 
@@ -516,6 +533,96 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
     }
 }
 
+Intersection::Intersection(std::string solFilePath) 
+{
+    // Load document.
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
+    if (!result)
+    {
+        std::cerr << "Could not parse XML." << std::endl;
+        std::cerr << result.description() << std::endl;
+    }
+
+    pugi::xml_node xmlScenario = doc.child("scenario");
+
+    // Append nodes to vector.
+    pugi::xml_node nodesList = xmlScenario.child("nodes");
+
+    std::vector<IntersectionNode*> nodeVector;
+    std::map<std::string, IntersectionNode*> nodeIDMap;
+    for (pugi::xml_node xmlNode = nodesList.first_child(); xmlNode; xmlNode = xmlNode.next_sibling())
+    {
+        short int x = static_cast<short int>(xmlNode.attribute("x").as_int());
+        short int y = static_cast<short int>(xmlNode.attribute("y").as_int());
+        short int z = static_cast<short int>(xmlNode.attribute("z").as_int());
+        std::string strtype = xmlNode.attribute("type").as_string();
+        JUNCTIONTYPES::JUNCTIONTYPES_ type = JUNCTIONTYPES_INDICES.at(strtype);
+        IntersectionNode* node = new IntersectionNode({Point3d(x, y, z), type});
+        nodeIDMap[xmlNode.attribute("id").value()] = node;
+        nodeVector.push_back(node);
+    }
+
+    std::vector<IntersectionEdge> edgeVector;
+    std::map<std::string, IntersectionEdge> edgeIDMap;
+    // Append edges to vector.
+    pugi::xml_node edgesList = xmlScenario.child("edges");
+    for (pugi::xml_node xmlEdge = edgesList.first_child(); xmlEdge; xmlEdge = xmlEdge.next_sibling())
+    {
+        IntersectionNode* s, *e;
+        s = nodeIDMap[xmlEdge.attribute("from").value()];
+        e = nodeIDMap[xmlEdge.attribute("to").value()];
+
+        short int priority = static_cast<short int>(xmlEdge.attribute("priority").as_int());
+        short int numLanes = static_cast<short int>(xmlEdge.attribute("numLanes").as_int());
+        short int speedLimit = static_cast<short int>(xmlEdge.attribute("speed").as_int());
+        BezierCurve handles;
+        pugi::xml_attribute handlesattr;
+        if (handlesattr == xmlEdge.attribute("handles")) 
+        {
+            std::string handleString = xmlEdge.attribute("handles").as_string();
+            std::vector<std::string> pointsList = split(handleString, " ");
+            std::vector<Point3d> points;
+            for (std::string point : pointsList) {
+                std::vector<short int> coords;
+                for (std::string coord : split(point, ",")) {
+                    coords.push_back(std::stoi(coord));
+                }
+                points.push_back(Point3d(coords));
+            }
+            handles = BezierCurve(s, e, points);
+        }
+        else {
+            handles = BezierCurve(s, e, {});
+        }
+
+        IntersectionEdge edge = IntersectionEdge(s, e, handles, numLanes, speedLimit, priority);
+        edgeIDMap[xmlEdge.attribute("id").value()] = edge;
+        edgeVector.push_back(edge);
+    }
+
+    std::vector<IntersectionRoute> routeVector;
+    // std::map<std::string, IntersectionRoute> routeIDMap;
+    // Append routes to vector.
+    pugi::xml_node routesList = xmlScenario.child("routes");
+    for (pugi::xml_node xmlRoute = routesList.first_child(); xmlRoute; xmlRoute = xmlRoute.next_sibling()) {
+        std::vector<std::string> edges = split(xmlRoute.attribute("edges").as_string(), " ");
+        std::vector<IntersectionNode*> routeNodes;
+        std::vector<IntersectionEdge> routeEdges;
+        for (int i = 0; i < edges.size(); i++) {
+            if (i == 0) {
+                routeNodes.push_back(edgeIDMap[edges[i]].getStartNode());
+                routeNodes.push_back(edgeIDMap[edges[i]].getEndNode());
+            }
+            else {
+                routeNodes.push_back(edgeIDMap[edges[i]].getEndNode());
+            }
+            routeEdges.push_back(edgeIDMap[edges[i]]);
+        }
+        routeVector.push_back(IntersectionRoute(routeNodes, routeEdges));
+    }
+    routes = routeVector;
+}
 
 void Intersection::Simulate(Intersection* int_, BACKENDS::BACKENDS_ back)
 {

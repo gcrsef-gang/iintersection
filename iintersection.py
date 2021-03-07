@@ -963,9 +963,6 @@ if __name__ == "__main__":
 
     # Set constants.
     if args.backend:
-        if args.backend == "traci":
-            BACKEND = 3
-        else:
             BACKEND = BACKENDS[args.backend]
     if args.max_evaluations:
         MAX_EVALUATIONS = args.max_evaluations
