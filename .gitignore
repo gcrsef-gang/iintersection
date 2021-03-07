@@ -7,6 +7,7 @@ venv/
 build/
 libiintersection.cpp
 libiintersection.*.so
+libiintersection.o
 
 # Python
 __pycache__/

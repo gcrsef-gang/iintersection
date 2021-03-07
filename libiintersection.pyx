@@ -37,7 +37,6 @@ cdef extern from "libiintersection.h" namespace "ii":
 
     cdef cppclass IntersectionScenario:
         IntersectionScenario()
-        IntersectionScenario(vector[nodepointer] nodes, vector[ScenarioEdge] edges) except +
         IntersectionScenario(string xmlFilePath)
         vector[nodepointer] getNodes()
         vector[ScenarioEdge] getEdges()
@@ -507,6 +506,9 @@ cdef class PyIntersectionNodePointer(PyNodePointer):
 
     def __eq__(self, other):
         return self.getID() == other.getID()
+
+    def __hash__(self):
+        return hash((self.getLoc(), self.getID()))
 
 
 cdef class PyIntersectionRoutePointer:

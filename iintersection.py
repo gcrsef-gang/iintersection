@@ -6,6 +6,7 @@ given traffic scenario.
 import argparse
 import math
 import subprocess
+import sys
 
 import numpy as np
 import scipy.optimize
@@ -347,9 +348,7 @@ def _check_edge_intersections(intersection, edge=None):
             if edge == intersection_edge:
                 continue
             if _get_edges_intersection(edge, intersection_edge):
-                print("true")
                 return True
-        print("false")
         return False
     else:
         for edge1 in intersection_edges:
@@ -357,9 +356,7 @@ def _check_edge_intersections(intersection, edge=None):
                 if edge1 == edge2:
                     continue
                 if _get_edges_intersection(edge1, edge2):
-                    print("true")
                     return True
-        print("false")
         return False
                 
 
@@ -415,6 +412,9 @@ def generate_inital_population(input_scenario):
             ]
             # Generate a route for each edge in the input scenario.
             intersection_routes = []
+            # Keys: tuples containing start and end nodes for each edge.
+            # Values: the edges themselves.
+            edge_nodes = {}
             for input_edge in input_scenario.getEdges():
                 start_node = input_edge.getStartNode()
                 end_node = input_edge.getEndNode()
@@ -451,6 +451,10 @@ def generate_inital_population(input_scenario):
 
                     # Create bezier curve using random points inside bounding box of start and end nodes
                     # of the edge.
+                    start_end_nodes = (route_nodes[-2], route_nodes[-1])
+                    if start_end_nodes in edge_nodes:
+                        route_edges.append(edge_nodes[start_end_nodes])
+                        continue
                     num_bezier_handles = rng.choice(3)
                     start_coords = route_nodes[-2].getLoc()
                     end_coords = route_nodes[-1].getLoc()
@@ -467,20 +471,21 @@ def generate_inital_population(input_scenario):
                     edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
                                             speed_limit, priority)
                     route_edges.append(edge)
-
+                    edge_nodes[(edge.getStartNode().getID(), edge.getEndNode().getID())] = edge
                     if exit_:
                         break
                 intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
-            # print("hello6")
             intersection = Intersection(intersection_routes)
             if not _check_edge_intersections(intersection):
-                print("works!")
                 # Create a new row of intersections.
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
                 intersections[-1].append(intersection)
+                sys.stdout.write(f"\rCreated {i} intersections")
+                sys.stdout.flush()
                 break
 
+    print()
     return intersections
 
 
