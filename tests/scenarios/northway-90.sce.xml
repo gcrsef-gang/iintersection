@@ -1,0 +1,27 @@
+<scenario name="northway-90">
+    <nodes>
+        <node id="1" x="0" y="0" z="0"/>
+        <node id="2" x="-4000" y="5184" z="60"/>
+        <node id="3" x="0" y="11878" z="0"/>
+        <node id="4" x="6327" y="6286" z="60"/>
+        <node id="5" x="-184" y="41" z="0"/>
+        <node id="6" x="-3857" y="5327" z="60"/>
+        <node id="7" x="286" y="11878" z="0"/>
+        <node id="8" x="631" y="612" z="60"/>
+    </nodes>
+
+    <edges>
+        <edge from="1" to="6" truck_demand="42" car_demand="424" />
+        <edge from="1" to="7" truck_demand="44" car_demand="1423" />
+        <edge from="1" to="8" truck_demand="77" car_demand="779" />
+        <edge from="2" to="5" truck_demand="51" car_demand="520" />
+        <edge from="2" to="7" truck_demand="125" car_demand="1263" />
+        <edge from="2" to="8" truck_demand="327" car_demand="6204" />
+        <edge from="3" to="5" truck_demand="44" car_demand="1423" />
+        <edge from="3" to="6" truck_demand="258" car_demand="2607" />
+        <edge from="3" to="8" truck_demand="232" car_demand="2351" />
+        <edge from="4" to="5" truck_demand="75" car_demand="756" />
+        <edge from="4" to="6" truck_demand="327" car_demand="6204" />
+        <edge from="4" to="7" truck_demand="245" car_demand="2472" />
+    </edges>
+</scenario>

@@ -1,0 +1,18 @@
+<scenario name="ny-7-87">
+    <nodes>
+        <node id="1" x="0" y="0" z="0" />
+        <node id="2" x="2571" y="11429" z="0" />
+        <node id="3" x="5390" y="5867" z="0" />
+        <node id="4" x="-610" y="-724" z="60" />
+        <node id="5" x="2914" y="11390" z="0" />
+        <node id="6" x="5257" y="5581" z="60" />
+    </nodes>
+    <edges>
+        <edge from="1" to="5" truck_demand="446" car_demand="5124">
+        <edge from="1" to="6" truck_demand="81" car_demand="1273">
+        <edge from="2" to="4" truck_demand="483" car_demand="5549">
+        <edge from="2" to="6" truck_demand="193" car_demand="1739">
+        <edge from="3" to="4" truck_demand="130" car_demand="2040">
+        <edge from="3" to="5" truck_demand="124" car_demand="1428">
+    </edges>
+</scenario>

@@ -5,15 +5,18 @@ given traffic scenario.
 
 import argparse
 import math
+import subprocess
 
 import numpy as np
+import scipy.optimize
+import traci
 
 from libiintersection import (
     PY_METRICS as METRICS, PY_BACKENDS as BACKENDS, PY_JUNCTIONTYPES as JUNCTIONTYPES,
     PY_VEHICLETYPES as VEHICLETYPES,
     PyBezierCurve as BezierCurve, PyIntersection as Intersection,
     PyIntersectionRoute as IntersectionRoute, PyIntersectionEdge as IntersectionEdge,
-    PyIntersectionScenario as IntersectionScenario,  PyNode as Node, PyScenarioEdge as ScenarioEdge,
+    PyIntersectionScenario as IntersectionScenario, PyScenarioEdge as ScenarioEdge,
     PyIntersectionNodePointer as IntersectionNodePointer
 )
 
@@ -22,8 +25,10 @@ from libiintersection import (
 BACKEND = BACKENDS["sumo"]
 MAX_EVALUATIONS = 25000
 POPULATION_SIZE = 400
-GRID_SIDELEN = math.sqrt(POPULATION_SIZE)
+GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
+
+SIMULATION_TIME = 604800
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
@@ -32,6 +37,10 @@ END_ROUTE_PROB = 0.5
 MAX_LANES = 5
 MAX_SPEED_LIMIT = 35  # m/s
 MAX_PRIORITY = 10
+LANE_WIDTH = 37
+
+# Clearance Height + the thickness of the road (decimeters)
+CLEARANCE_HEIGHT = 60
 POSITION_MUTATION_FACTOR = 0.05
 MUTATION_PROB = 0.1
 
@@ -272,6 +281,81 @@ def _transform_edge(start_node, end_node, repl_edge):
     return new_edge
 
 
+def _bezier_curve(t, handles):
+    if len(handles) == 2:
+        x = (1-t)*handles[0][0] + t*handles[1][0]
+        y = (1-t)*handles[0][1] + t*handles[1][1]
+        z = (1-t)*handles[0][2] + t*handles[1][2]
+    elif len(handles) == 3:
+        x = math.pow((1-t), 2)*handles[0][0] + 2*(1-t)*t*handles[1][0] + math.pow(t, 2)*handles[2][0]
+        y = math.pow((1-t), 2)*handles[0][1] + 2*(1-t)*t*handles[1][1] + math.pow(t, 2)*handles[2][1]
+        z = math.pow((1-t), 2)*handles[0][2] + 2*(1-t)*t*handles[1][2] + math.pow(t, 2)*handles[2][2]
+    else:
+        x = math.pow((1-t), 3)*handles[0][0] + 3*math.pow((1-t),2)*t*handles[1][0] + 3*(1-t)*math.pow(t,2)*handles[2][0] + math.pow(t,3)*handles[3][0]
+        y = math.pow((1-t), 3)*handles[0][1] + 3*math.pow((1-t),2)*t*handles[1][1] + 3*(1-t)*math.pow(t,2)*handles[2][1] + math.pow(t,3)*handles[3][1]
+        z = math.pow((1-t), 3)*handles[0][2] + 3*math.pow((1-t),2)*t*handles[1][2] + 3*(1-t)*math.pow(t,2)*handles[2][2] + math.pow(t,3)*handles[3][2]
+    return x, y, z
+
+
+def _2d_distance_evaluation(t_values, *args):
+    handles1 = args[0]
+    handles2 = args[1]
+    min_good_2d_distance = args[2]
+
+    bezier1 = _bezier_curve(t_values[0], handles1)
+    bezier2 = _bezier_curve(t_values[1], handles2)
+    _2d_distance = _get_squared_distance(bezier1[:-1], bezier2[:-1])
+    distance = _get_squared_distance(bezier1, bezier2)
+    if _2d_distance < min_good_2d_distance:
+        if abs(bezier1[-1]-bezier2[-1]) < CLEARANCE_HEIGHT:
+            return distance-1e6
+        else:
+            return distance
+    else:
+        return distance
+
+
+def _get_edges_intersection(edge1, edge2):
+    edge1_bezier = edge1.getShape()
+    edge1_handles = edge1_bezier.getHandles()
+    edge1_handles.insert(0, edge1_bezier.getStartNode().getLoc())
+    edge1_handles.insert(-1, edge1_bezier.getEndNode().getLoc())
+
+    edge2_bezier = edge2.getShape()
+    edge2_handles = edge2_bezier.getHandles()
+    edge2_handles.insert(0, edge2_bezier.getStartNode().getLoc())
+    edge2_handles.insert(-1, edge2_bezier.getEndNode().getLoc())
+
+    min_good_2d_distance = LANE_WIDTH*(edge1.getNumLanes() + edge2.getNumLanes())/2
+    args = (edge1_handles, edge2_handles, min_good_2d_distance)
+    bounds = ((0,1),(0,1))
+    solution = scipy.optimize.minimize(_2d_distance_evaluation, (0.5, 0.5), args=args, bounds=bounds)
+    min_distance = _2d_distance_evaluation(solution.x, args[0], args[1], args[2])
+    if min_distance > 0:
+        return True
+    else:
+        return False
+
+
+def _check_edge_intersections(intersection, edge=None):
+    intersection_edges = intersection.getUniqueEdges()
+    if edge is not None:
+        for intersection_edge in intersection_edges:
+            if edge == intersection_edge:
+                continue
+            if not _get_edges_intersection(edge, intersection_edge):
+                return False
+        return True
+    else:
+        for edge1 in intersection_edges:
+            for edge2 in intersection_edges:
+                if edge1 == edge2:
+                    continue
+                if not _get_edges_intersection(edge1, edge2):
+                    return False
+        return True
+                
+
 def generate_inital_population(input_scenario):
     """Generates the initial grid of solutions.
 
@@ -289,9 +373,9 @@ def generate_inital_population(input_scenario):
     # Number of nodes for each intersection (excluding input nodes).
     num_nodes = rng.normal(loc=NUM_NODES_MEAN, scale=NUM_NODES_STDEV, size=POPULATION_SIZE)
     num_nodes = np.array(num_nodes, dtype=np.int32)
+    num_nodes = np.clip(num_nodes, a_min=0, a_max=None)
 
     intersections = []  # 2D square grid.
-    row_size = GRID_SIDELEN
 
     # Generate the bounding box of the intersection.
     input_nodes_coords = [node.getLoc() for node in input_nodes]
@@ -304,92 +388,94 @@ def generate_inital_population(input_scenario):
     POSITION_MUTATION_CUBE_LENGTH = math.sqrt((input_nodes_max_x-input_nodes_min_x)* \
             (input_nodes_max_y-input_nodes_min_y)) * POSITION_MUTATION_FACTOR
     for i in range(POPULATION_SIZE):
+        while True:
+            # Choose points on a normal distribution scaled according to the locations of the nodes in
+            # the input scenario.
+            node_x_coords = rng.normal(loc=(input_nodes_max_x + input_nodes_min_x) / 2,
+                                    scale=(input_nodes_max_x - input_nodes_min_x) * COORD_STDEV_FACTOR,
+                                    size=num_nodes[i])
+            node_y_coords = rng.normal(loc=(input_nodes_max_y + input_nodes_min_y) / 2,
+                                    scale=(input_nodes_max_y - input_nodes_min_y) * COORD_STDEV_FACTOR,
+                                    size=num_nodes[i])
+            node_z_coords = rng.normal(loc=(input_nodes_max_z + input_nodes_min_z) / 2,
+                                    scale=(input_nodes_max_z - input_nodes_min_z) * COORD_STDEV_FACTOR,
+                                    size=num_nodes[i])
+            node_x_coords = np.array(node_x_coords, dtype=np.int32)
+            node_y_coords = np.array(node_y_coords, dtype=np.int32)
+            node_z_coords = np.array(node_z_coords, dtype=np.int32)
+            node_types = rng.integers(low=0, high=len(JUNCTIONTYPES), size=num_nodes[i])
+            intersection_nodes = [
+                IntersectionNodePointer((x, y, z), node_type) for x, y, z, node_type
+                in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
+            ]
 
-        # Choose points on a normal distribution scaled according to the locations of the nodes in
-        # the input scenario.
-        node_x_coords = rng.normal(loc=(input_nodes_max_x + input_nodes_min_x) / 2,
-                                   scale=(input_nodes_max_x - input_nodes_min_x) * COORD_STDEV_FACTOR,
-                                   size=num_nodes[i])
-        node_y_coords = rng.normal(loc=(input_nodes_max_y + input_nodes_min_y) / 2,
-                                   scale=(input_nodes_max_y - input_nodes_min_y) * COORD_STDEV_FACTOR,
-                                   size=num_nodes[i])
-        node_z_coords = rng.normal(loc=(input_nodes_max_z + input_nodes_min_z) / 2,
-                                   scale=(input_nodes_max_z - input_nodes_min_z) * COORD_STDEV_FACTOR,
-                                   size=num_nodes[i])
-        node_x_coords = np.array(node_x_coords, dtype=np.int32)
-        node_y_coords = np.array(node_y_coords, dtype=np.int32)
-        node_z_coords = np.array(node_z_coords, dtype=np.int32)
-        node_types = rng.integers(low=0, high=len(JUNCTIONTYPES), size=num_nodes[i])
-        intersection_nodes = [
-            IntersectionNodePointer(x, y, z, node_type) for x, y, z, node_type
-            in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
-        ]
+            # Generate a route for each edge in the input scenario.
+            intersection_routes = []
+            for input_edge in input_scenario.getEdges():
+                start_node = input_edge.getStartNode()
+                end_node = input_edge.getEndNode()
 
-        # Generate a route for each edge in the input scenario.
-        intersection_routes = []
-        for input_edge in input_scenario.getEdges():
-            start_node = input_edge.getStartNode()
-            end_node = input_edge.getEndNode()
+                unchosen_nodes = [n for n in range(len(intersection_nodes))]
+                route_nodes = [IntersectionNodePointer.fromScenarioNode(start_node)]
+                route_edges = []
+                while True:
+                    exit_ = False
 
-            unchosen_nodes = [n for n in range(len(intersection_nodes))]
-            route_nodes = [IntersectionNodePointer(end_node)]
-            route_edges = []
-            while True:
-                exit_ = False
+                    # 50/50 chance of connecting the previous node to the end node of the route.
+                    if rng.random() < END_ROUTE_PROB:
+                        route_nodes.append(IntersectionNodePointer.fromScenarioNode(end_node))
+                        exit_ = True
+                    elif len(unchosen_nodes) > 0:
+                        # Choose a random node with a probability proportional to its distance from the
+                        # previous node in the route.
+                        distances = []
+                        for n in unchosen_nodes:
+                            squared_distance = _get_squared_distance(route_nodes[-1].getLoc(),
+                                                                    intersection_nodes[n].getLoc())
+                            distances.append(squared_distance)
+                        distance_sum = sum(distances)
+                        probabilities = [d / distance_sum for d in distances]
+                        next_node_index = rng.choice(unchosen_nodes, p=probabilities)
+                        route_nodes.append(intersection_nodes[next_node_index])
+                        unchosen_nodes.remove(next_node_index)
+                    else:
+                        # All the nodes of the intersection are in this route.
+                        route_nodes.append(IntersectionNodePointer.fromScenarioNode(end_node))
+                        exit_ = True
 
-                # 50/50 chance of connecting the previous node to the end node of the route.
-                if rng.choice(2, p=[END_ROUTE_PROB, 1 - END_ROUTE_PROB]):
-                    route_nodes.append(IntersectionNodePointer(end_node))
-                    exit_ = True
-                elif len(unchosen_nodes) > 0:
-                    # Choose a random node with a probability proportional to its distance from the
-                    # previous node in the route.
-                    distances = []
-                    for n in unchosen_nodes:
-                        squared_distance = _get_squared_distance(route_nodes[-1].getLoc(),
-                                                                 intersection_nodes[n].getLoc())
-                        distances.append(squared_distance)
-                    distance_sum = sum(distances)
-                    probabilities = [d / distance_sum for d in distances]
-                    next_node_index = rng.choice(intersection_nodes, p=probabilities)
-                    route_nodes.append(intersection_nodes[next_node_index])
-                    unchosen_nodes.remove(next_node_index)
-                else:
-                    # All the nodes of the intersection are in this route.
-                    route_nodes.append(IntersectionNodePointer(end_node))
-                    exit_ = True
+                    # Generate an edge between the two most recently added nodes in the route.
 
-                # Generate an edge between the two most recently added nodes in the route.
+                    # Create bezier curve using random points inside bounding box of start and end nodes
+                    # of the edge.
+                    num_bezier_handles = rng.choice(3)
+                    start_coords = route_nodes[-2].getLoc()
+                    end_coords = route_nodes[-1].getLoc()
+                    if num_bezier_handles:
+                        points = _sample_expanded_bbox(start_coords, end_coords, num_bezier_handles)
+                    else:
+                        points = []
+                    bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
 
-                # Create bezier curve using random points inside bounding box of start and end nodes
-                # of the edge.
-                num_bezier_handles = rng.choice(3)
-                start_coords = route_nodes[-2].getLoc()
-                end_coords = route_nodes[-1].getLoc()
-                if num_bezier_handles:
-                    points = _sample_expanded_bbox(start_coords, end_coords, num_bezier_handles)
-                else:
-                    points = []
-                bezier_curve = BezierCurve(route_nodes[-2], route_nodes[-1], points)
+                    # Create edge with random priority, speed limit, and number of lanes.
+                    priority = rng.choice(np.arange(1, MAX_PRIORITY + 1))
+                    num_lanes = rng.choice(np.arange(1, MAX_LANES + 1))
+                    speed_limit = rng.random() * MAX_SPEED_LIMIT
+                    edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
+                                            speed_limit, priority)
+                    route_edges.append(edge)
 
-                # Create edge with random priority, speed limit, and number of lanes.
-                priority = rng.choice(np.arange(1, MAX_PRIORITY + 1))
-                num_lanes = rng.choice(np.arange(1, MAX_LANES + 1))
-                speed_limit = rng.random() * MAX_SPEED_LIMIT
-                edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
-                                        speed_limit, priority)
-                route_edges.append(edge)
+                    if exit_:
+                        break
 
-                if exit_:
-                    break
-            
-            intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
+                intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
 
-        # Create a new row of intersections.
-        if i % row_size == 0:
-            intersections.append([])
-        intersections[-1].append(Intersection(intersection_routes))
-
+            intersection = Intersection(intersection_routes)
+            if _check_edge_intersections(intersection):
+                # Create a new row of intersections.
+                if i % GRID_SIDELEN == 0:
+                    intersections.append([])
+                intersections[-1].append(intersection)
+                break
     return intersections
 
 
@@ -543,7 +629,7 @@ def mutate(solution):
                                                 edge.getEndNode.getLoc(), 1)[0]
                     junction_type = rng.choice(JUNCTIONTYPES.values())
                     new_node = IntersectionNodePointer(loc, junction_type)
-                elif rng.choice(2):
+                else:
                     # Choose existing node.
                     new_node = rng.choice([node for route_ in routes for node in route_.getNodesList()])
                 new_nodes.insert(new_nodes.index(edge.getEndNode()), new_node)
@@ -651,7 +737,7 @@ def mutate(solution):
                 new_edges = [edge for edge in new_edges if edge not in to_remove]
                 for child in children:
                     for parent in parents:
-                        repl_edge = rng.chocie([edge for route_ in routes for edge in route_])
+                        repl_edge = rng.choice([edge for route_ in routes for edge in route_])
                         new_edges.append(_transform_edge(parent, child, repl_edge))
                 new_nodes.remove(node)                        
 
@@ -710,6 +796,15 @@ def mutate(solution):
                 for n, node_ in enumerate(new_nodes):
                     if node_ == node:
                         new_nodes[n] = new_node
+                for route_ in routes:
+                    node_index = -1
+                    for n, node_ in enumerate(new_nodes):
+                        if node_ == node:
+                            node_index = n
+                    if node_index != -1:
+                        new_nodes_route_ = route_.getNodeList()
+                        new_nodes_route_[node_index] = node
+                        route_.setNodeList(new_nodes_route_)
                 node.removeReference()
 
         # In-place on Intersection object because getRoutes() returns route pointers.
@@ -717,7 +812,7 @@ def mutate(solution):
         route.setEdgeList(new_edges)
 
 
-def evaluate_fitness(solution):
+def evaluate_fitness(solution, intersectionscenario=None):
     """Evaluates the fitness of the given solution.
 
     The solution's fitness metrics are now cached, so that the getMetrics() method will return
@@ -733,10 +828,48 @@ def evaluate_fitness(solution):
     tuple of float
         The safety, emmissions, and efficiency values of the intersection, in that order.
     """
-    solution.simulate(BACKENDS["sumo"])
-    solution.updateMetrics(BACKENDS["sumo"])
+    is_valid = _check_edge_intersections(solution)
+    if is_valid:
+        # traci is being used
+        if BACKEND == BACKENDS["traci"]:
+            with open("traci/traci.nod.xml", "w+") as f:
+                f.write(intersection.getNodeXML())
+            with open("traci/traci.edg.xml", "w+") as f:
+                f.write(intersection.getEdgeXML())
+            subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
+            with open("traci/traci.rou.xml", "w+") as f:
+                f.write(intersection.getRouteXML(intersectionscenario))
+
+            traci.start(["sumo", "-c", "traci/traci.sumocfg"])
+            step = 0
+            simulation_emissions = 0
+            simulation_collisions = 0
+            simulation_travel_times = 0
+            while step < SIMULATION_TIME:
+                traci.simulationStep()
+
+                emissions_sum = 0
+                vehicle_id_list = traci.vehicle.getIDList()
+                for vehicle_id in vehicle_id_list:
+                    emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
+
+                collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
+
+                travel_times_sum = 0
+                edge_ids = traci.edge.getIDList()
+                for edge_id in edge_ids:
+                    travel_times_sum += traci.edge.getTraveltime(edge_id)
+                
+                
+                simulation_emissions += emissions_sum
+                simulation_collisions += collisions_num
+                simulation_travel_times += travel_times_sum
+            return simulation_collisions, simulation_travel_times, simulation_emissions
+        solution.simulate(BACKEND)
+        solution.updateMetrics(BACKEND)
+    else:
+        solution.markInvalid()
     return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
-    
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.
@@ -766,22 +899,19 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
 def optimize(input_scenario):
     """Estimates the pareto front of optimal intersections for a given traffic scenario.
 
+    Writes the intersections to a directory 'tmp'. 
+
     Parameters
     ----------
     input_scenario: IntersectionScenario
         A traffic scenario which can be handled by an intersection or interchange.
-
-    Returns
-    -------
-    list of Intersection
-        An optimized set of intersections that can handle the demand of the `input_scenario`.
     """
     est_pareto_front = []
     population = generate_inital_population(input_scenario)
     # Evaluate all solutions in the grid.
     for row in population:
         for solution in row:
-            evaluate_fitness(solution)
+            evaluate_fitness(solution, input_scenario)
     num_evaluations = POPULATION_SIZE
 
     # Mainloop:
@@ -796,7 +926,7 @@ def optimize(input_scenario):
             mutate(offspring)
 
             # Choose an individual.
-            evaluate_fitness(offspring)
+            evaluate_fitness(offspring, input_scenario)
             num_evaluations += 1
             current_individual = population[pos[0]][pos[1]]
             replacement_solution, dominant = _get_dominant_solution(current_individual, offspring)
@@ -806,11 +936,13 @@ def optimize(input_scenario):
             if replacement_solution is offspring:
                 # A reference is getting deleted to each of the nodes in the intersection that will
                 # no longer be part of the the population.
-                for route in current_individual.getRoutes():
-                    for node in route.getNodeList():
-                        node.removeReference()
+                for node in current_individual.getUniqueNodes():
+                    node.removeReference()
                 if dominant:
                     update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+            else:
+                for node in offspring.getUniqueNodes():
+                    node.removeReference()
         population = intermediate_population
 
     return est_pareto_front
@@ -821,17 +953,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("scenario")
     parser.add_argument("-b", "--backend",
-                        choices=["sumo", "vissim", "cityflow"])
+                        choices=["sumo", "vissim", "cityflow", "traci"])
     parser.add_argument("-e", "--max-evaluations", dest="max_evaluations")
     parser.add_argument("-p", "--population-size", type=int, dest="population_size")
     args = parser.parse_args()
 
     # Generate scenario object from xml file.
-    input_scenario = IntersectionScenario.fromXML(args.scenario)
+    input_scenario = IntersectionScenario(args.scenario)
 
     # Set constants.
     if args.backend:
-        BACKEND = BACKENDS[args.backend]
+        if args.backend == "traci":
+            BACKEND = 3
+        else:
+            BACKEND = BACKENDS[args.backend]
     if args.max_evaluations:
         MAX_EVALUATIONS = args.max_evaluations
     if args.population_size:
@@ -846,7 +981,7 @@ if __name__ == "__main__":
     node_output_files = [f"intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
     edge_output_files = [f"intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
     for i, intersection in enumerate(optimized_intersections):
-        with open(node_output_files[i], 'w+') as f:
+        with open(node_output_files[i], "w+") as f:
             f.write(node_output_files[i], intersection.getNodeXML())
-        with open(edge_output_files[i], 'w+') as f:
+        with open(edge_output_files[i], "w+") as f:
             f.write(edge_output_files[i], intersection.getEdgeXML())
