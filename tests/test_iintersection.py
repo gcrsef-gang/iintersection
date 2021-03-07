@@ -36,10 +36,8 @@ def test_generate_initial_population():
 
         print(f"Building scenario for {scenario_file}... ")
         scenario = ii.IntersectionScenario(f"{SCENARIO_FILES}/{scenario_file}")
-        print("done")
         print(f"Generating population for {scenario_file}... ")
         init_pop = ii.generate_inital_population(scenario)
-        print("done")
         i = 0
         for i in range(ii.POPULATION_SIZE):
             intersection = init_pop[i // ii.GRID_SIDELEN][i % ii.GRID_SIDELEN]

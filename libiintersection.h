@@ -90,6 +90,7 @@ std::map<JUNCTIONTYPES::JUNCTIONTYPES_, SumoXMLNodeType> SumoJunctionMap = {
     {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, SumoXMLNodeType::TRAFFIC_LIGHT_RIGHT_ON_RED}
 };
 
+
 // Intersection evaluation function type
 typedef void (::ii::BackendsManager::*IntersectionEvalFunc)(::ii::Intersection*);
 
@@ -124,7 +125,6 @@ public:
 private:
     short int x_, y_, z_;
 };
-
 
 
 class SumoInterface : public BackendsManager
@@ -335,9 +335,11 @@ public:
     std::vector<IntersectionRoute*> getRoutes();
     std::vector<std::shared_ptr<IntersectionNode> > getUniqueNodes();
     std::vector<IntersectionEdge*> getUniqueEdges();
+    
     std::string getEdgeXML();
     std::string getNodeXML();
     std::string getRouteXML(IntersectionScenario intersectionScenario);
+    std::string getSolXML();
 
 private:
     std::vector<IntersectionRoute> routes;
@@ -735,7 +737,7 @@ std::string Intersection::getNodeXML()
         nodeTag << "type=\"" << JUNCTIONTYPES_NAMES.at(nodes[i]->getJunctionType()) << "\"/>\n";
 
         xmlOutput += nodeTag.str();
-        nodeTag.clear();
+        nodeTag.str(std::string());
     }
 
     xmlOutput += "</nodes>";
@@ -787,7 +789,7 @@ std::string Intersection::getEdgeXML()
         edgeTag << "\"/>\n";
 
         xmlOutput += edgeTag.str();
-        edgeTag.clear();
+        edgeTag.str(std::string());
     }
 
     xmlOutput += "</edges>";
@@ -865,16 +867,93 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
     return xmlStream.str();
 }
 
+std::string Intersection::getSolXML() 
+{
+    std::string xmlOutput = "<scenario>\n\t<nodes>\n";
+    std::stringstream nodeText;
+
+    for (std::shared_ptr<IntersectionNode>& node : this->getUniqueNodes()) {
+        nodeText << "\t\t<node> "
+                 << "id=\"" << node->getID() << "\" "
+                 << "x=\"" << node->getLoc()->x() << "\" y=\"" << node->getLoc()->y() << "\" z=\"" << node->getLoc()->z() << "\" "
+                 << "type=\"" << JUNCTIONTYPES_NAMES.at(node->getJunctionType()) << "\" "
+                 << "/>\n";
+        
+        xmlOutput += nodeText.str();
+        nodeText.str(std::string());
+    }
+
+    xmlOutput += "\t</nodes>\n\n\t<edges>\n";
+
+    std::vector<IntersectionEdge*> edgeList = this->getUniqueEdges();
+    std::map<IntersectionEdge*, int> edgeIDMap;
+
+    for (int i = 0; i < edgeList.size(); i++)
+    {
+        IntersectionEdge* edge = edgeList[i];
+        edgeIDMap[edge] = i;
+
+        std::stringstream edgeText;
+        edgeText << "\t\t<edge> "
+                 << "id=\"" << i << "\" "
+                 << "from=\"" << edge->getStartNode()->getID() << "\" "
+                 << "to=\"" << edge->getEndNode()->getID() << "\" "
+                 << "priority=\"" << edge->getPriority() << "\" "
+                 << "numLanes=\"" << edge->getNumLanes() << "\" "
+                 << "speed=\"" << edge->getSpeedLimit() << "\" ";
+
+        std::string coordsText;
+        std::vector<Point3d> points = edge->getShape().getHandles();
+
+        for (Point3d point : points)
+        {
+            coordsText += " ";
+            std::string coordText = std::to_string(point.x()) + "," + std::to_string(point.y()) + "," + std::to_string(point.z());
+            coordsText += coordText;
+        }
+        
+        edgeText << "handles=\"" << coordsText.substr(1) << "\" ";
+        edgeText << "/>\n";
+
+        xmlOutput += edgeText.str();
+        edgeText.str(std::string());
+    }
+    
+    xmlOutput += "\t</edges>\n\n\t<routes>\n";
+
+    for (IntersectionRoute* route : this->getRoutes())
+    {
+        std::stringstream routeText;
+        routeText << "\t\t<route ";
+        
+        std::string edgesText;
+        for (IntersectionEdge* edge : route->getEdgeList())
+        {
+            edgesText += " ";
+            edgesText += std::to_string(edgeIDMap[edge]);
+        }
+
+        routeText << "edges=\"" << edgesText.substr(1) << "\" ";
+        routeText << "/>\n";
+
+        xmlOutput += routeText.str();
+        routeText.str(std::string());
+    }
+
+    xmlOutput += "\t</routes>\n</scenario>";
+    return xmlOutput;
+}
+
 
 /**
  * All SUMO related backend helper methods
  */
 
 
-void SumoInterface::performSim(const std::size_t time)
-{
-    net->simulate(0, SIMTIME);
-}
+// void SumoInterface::performSim(const std::size_t time)
+// {
+//     net->simulate(0, SIMTIME);
+// }
 
 
 void SumoInterface::rebuildNet(Intersection* iint)
