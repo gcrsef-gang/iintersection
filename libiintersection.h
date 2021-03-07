@@ -338,6 +338,7 @@ public:
     std::string getEdgeXML();
     std::string getNodeXML() const;
     std::string getRouteXML(ii::IntersectionScenario intersectionScenario);
+    std::string getSolXML();
 
 private:
     bool isValid;
@@ -871,6 +872,74 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
     }
 
     xmlOutput += "</routes>";
+    return xmlOutput;
+}
+
+std::string Intersection::getSolXML() 
+{
+    std::string xmlOutput = "<scenario> \n \t<nodes>\n";
+
+    for (IntersectionNode* node : this->getUniqueNodes()) {
+        std::stringstream nodeText;
+        nodeText << "\t\t<node> ";
+        nodeText << "id=\"" << std::to_string(node->getID()) << "\" ";
+        std::string x = std::to_string(node->getLoc()->x());
+        std::string y = std::to_string(node->getLoc()->y());
+        std::string z = std::to_string(node->getLoc()->z());
+        nodeText << "x=\"" << x << "\" y=\"" << y << "\" z=\"" << z << "\" ";
+        std::string type = JUNCTIONTYPES_NAMES.at(node->getJunctionType());
+        nodeText << "type=\"" << type << "\" ";
+        nodeText << "/>\n";
+        
+        xmlOutput += nodeText.str();
+    }
+    xmlOutput += "\t</nodes>\n\n\t<edges>\n";
+
+    std::vector<IntersectionEdge*> edgeList = this->getUniqueEdges();
+    std::map<IntersectionEdge*, int> edgeIDMap;
+    for (int i = 0; i < edgeList.size(); i++) {
+        IntersectionEdge* edge = edgeList[i];
+        edgeIDMap[edge] = i;
+        std::stringstream edgeText;
+        edgeText << "\t\t<edge> ";
+        edgeText << "id=\"" << std::to_string(i) << "\" ";
+        IntersectionNode* startNode = edge->getStartNode();
+        IntersectionNode* endNode = edge->getEndNode();
+        edgeText << "from=\"" << std::to_string(startNode->getID()) << "\" ";
+        edgeText << "to=\"" << std::to_string(endNode->getID()) << "\" ";
+        edgeText << "priority=\"" << std::to_string(edge->getPriority()) << "\" ";
+        edgeText << "numLanes=\"" << std::to_string(edge->getNumLanes()) << "\" ";
+        edgeText << "speed=\"" << std::to_string(edge->getSpeedLimit()) << "\" ";
+
+        std::string coordsText;
+        std::vector<Point3d> points = edge->getShape().getHandles();
+        for (Point3d point : points) {
+            coordsText += " ";
+            std::string coordText = std::to_string(point.x()) + "," + std::to_string(point.y()) + "," + std::to_string(point.z());
+            coordsText += coordText;
+        }
+        edgeText << "handles=\"" << coordsText.substr(1) << "\" ";
+        edgeText << "/>\n";
+
+        xmlOutput += edgeText.str();
+    }
+    xmlOutput += "\t</edges>\n\n\t<routes>\n";
+    for (IntersectionRoute* route : this->getRoutes()) {
+        std::stringstream routeText;
+        routeText << "\t\t<route ";
+        
+        std::string edgesText;
+        for (IntersectionEdge* edge : route->getEdgeList()) {
+            edgesText += " ";
+            edgesText += std::to_string(edgeIDMap[edge]);
+        }
+        routeText << "edges=\"" << edgesText.substr(1) << "\" ";
+        routeText << "/>\n";
+        
+        xmlOutput += routeText.str();
+    }
+    xmlOutput += "\t</routes>\n</scenario>";
+
     return xmlOutput;
 }
 

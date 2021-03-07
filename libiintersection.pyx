@@ -56,6 +56,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         string getNodeXML()
         string getEdgeXML() 
         string getRouteXML(IntersectionScenario intersectionScenario)
+        string getSolXML()
 
         vector[intersectionroutepointer] getRoutes()
 
@@ -201,7 +202,10 @@ cdef class PyIntersection:
         return self.c_intersection.getEdgeXML().decode('utf-8')
 
     def getRouteXML(self, PyIntersectionScenario pyintersectionscenario):
-        return self.c_intersection.getRouteXML(pyintersectionscenario.c_intersectionscenario)
+        return self.c_intersection.getRouteXML(pyintersectionscenario.c_intersectionscenario).decode('utf-8')
+
+    def getSolXML(self):
+        return self.c_intersection.getSolXML().decode('utf-8')
 
     def getRoutes(self):
         cdef vector[intersectionroutepointer] routesvector = self.c_intersection.getRoutes()
