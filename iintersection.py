@@ -325,16 +325,19 @@ def _get_edges_intersection(edge1, edge2):
     edge2_handles = edge2_bezier.getHandles()
     edge2_handles.insert(0, edge2_bezier.getStartNode().getLoc())
     edge2_handles.insert(-1, edge2_bezier.getEndNode().getLoc())
-
     min_good_2d_distance = LANE_WIDTH*(edge1.getNumLanes() + edge2.getNumLanes())/2
     args = (edge1_handles, edge2_handles, min_good_2d_distance)
     bounds = ((0,1),(0,1))
     solution = scipy.optimize.minimize(_2d_distance_evaluation, (0.5, 0.5), args=args, bounds=bounds)
+
+    if round(solution.x[0]) in [0,1]:
+        if round(solution.x[1]) in [0,1]:
+            return False
     min_distance = _2d_distance_evaluation(solution.x, args[0], args[1], args[2])
     if min_distance > 0:
-        return True
-    else:
         return False
+    else:
+        return True
 
 
 def _check_edge_intersections(intersection, edge=None):
@@ -343,17 +346,21 @@ def _check_edge_intersections(intersection, edge=None):
         for intersection_edge in intersection_edges:
             if edge == intersection_edge:
                 continue
-            if not _get_edges_intersection(edge, intersection_edge):
-                return False
-        return True
+            if _get_edges_intersection(edge, intersection_edge):
+                print("true")
+                return True
+        print("false")
+        return False
     else:
         for edge1 in intersection_edges:
             for edge2 in intersection_edges:
                 if edge1 == edge2:
                     continue
-                if not _get_edges_intersection(edge1, edge2):
-                    return False
-        return True
+                if _get_edges_intersection(edge1, edge2):
+                    print("true")
+                    return True
+        print("false")
+        return False
                 
 
 def generate_inital_population(input_scenario):
@@ -374,9 +381,7 @@ def generate_inital_population(input_scenario):
     num_nodes = rng.normal(loc=NUM_NODES_MEAN, scale=NUM_NODES_STDEV, size=POPULATION_SIZE)
     num_nodes = np.array(num_nodes, dtype=np.int32)
     num_nodes = np.clip(num_nodes, a_min=0, a_max=None)
-
     intersections = []  # 2D square grid.
-
     # Generate the bounding box of the intersection.
     input_nodes_coords = [node.getLoc() for node in input_nodes]
     input_nodes_max_x = max([loc[0] for loc in input_nodes_coords])
@@ -408,7 +413,6 @@ def generate_inital_population(input_scenario):
                 IntersectionNodePointer((x, y, z), node_type) for x, y, z, node_type
                 in zip(node_x_coords, node_y_coords, node_z_coords, node_types)
             ]
-
             # Generate a route for each edge in the input scenario.
             intersection_routes = []
             for input_edge in input_scenario.getEdges():
@@ -466,16 +470,17 @@ def generate_inital_population(input_scenario):
 
                     if exit_:
                         break
-
                 intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
-
+            # print("hello6")
             intersection = Intersection(intersection_routes)
-            if _check_edge_intersections(intersection):
+            if not _check_edge_intersections(intersection):
+                print("works!")
                 # Create a new row of intersections.
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
                 intersections[-1].append(intersection)
                 break
+
     return intersections
 
 
