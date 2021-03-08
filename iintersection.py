@@ -100,11 +100,12 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
     corresponding_routes = []
     for route in intersection.getRoutes():
         route_nodes = route.getNodeList()
-        same_start_nodes = route_nodes[0].getID() == scenario_edge.getStartNode().getID()
+        same_start_nodes = route_nodes[0].getLoc() == scenario_edge.getStartNode().getLoc()
         # Second equality test not run if same_start_nodes is false.
-        if same_start_nodes and route_nodes[1].getID() == scenario_edge.getEndNode().getID():
+        if same_start_nodes and route_nodes[-1].getLoc() == scenario_edge.getEndNode().getLoc():
             corresponding_routes.append(route)
     return corresponding_routes[rng.choice(len(corresponding_routes))]
+    # return corresponding_routes[rng.choice(2)]
 
 
 def _get_dominant_solution(intersection1, intersection2):
@@ -241,9 +242,8 @@ def _transform_edge(start_node, end_node, repl_edge):
     es_x, es_y, es_z = edge_start_coords
     edge_end_coords = end_node.getLoc()
     ee_x, ee_y, ee_z = edge_end_coords
-
-    new_points = [repl_start_coords] + repl_edge.getShape().getHandles() + [repl_end_coords]
-
+    new_points = [list(repl_start_coords)] + [list(p) for p in repl_edge.getShape().getHandles()] + [list(repl_end_coords)]
+    
     # Translate to origin.
     for point in new_points:
         for dim in range(3):
@@ -275,6 +275,8 @@ def _transform_edge(start_node, end_node, repl_edge):
     for point in new_points:
         for dim in range(3):
             point[dim] += edge_start_coords[dim]
+
+    new_points = [tuple(p) for p in new_points]
 
     bezier_curve = BezierCurve(start_node, end_node, new_points[1:-1])
     new_edge = IntersectionEdge(start_node, end_node, bezier_curve, repl_edge.getNumLanes(),
@@ -389,7 +391,8 @@ def generate_inital_population(input_scenario):
     input_nodes_min_z = min([loc[2] for loc in input_nodes_coords])
     POSITION_MUTATION_CUBE_LENGTH = math.sqrt((input_nodes_max_x-input_nodes_min_x)* \
             (input_nodes_max_y-input_nodes_min_y)) * POSITION_MUTATION_FACTOR
-    for i in range(POPULATION_SIZE):
+    # for i in range(POPULATION_SIZE):
+    for i in [0, 1]:
         while True:
             # Choose points on a normal distribution scaled according to the locations of the nodes in
             # the input scenario.
@@ -452,7 +455,7 @@ def generate_inital_population(input_scenario):
                     # Create bezier curve using random points inside bounding box of start and end nodes
                     # of the edge.
                     start_end_nodes = (route_nodes[-2], route_nodes[-1])
-                    if start_end_nodes in edge_nodes:
+                    if start_end_nodes in edge_nodes.keys():
                         route_edges.append(edge_nodes[start_end_nodes])
                         continue
                     num_bezier_handles = rng.choice(3)
@@ -485,7 +488,8 @@ def generate_inital_population(input_scenario):
                 sys.stdout.flush()
                 break
 
-    print()
+        with open(f"tmp/init-gen/ny-7-787/{i}.sol.xml", "w+") as f:
+            f.write(intersection.getSolXML())
     return intersections
 
 
@@ -601,6 +605,7 @@ def crossover(parents, input_scenario):
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
 
+        print(child_route_edges, "ok!")
         child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
     return Intersection(child_routes) 
@@ -672,7 +677,7 @@ def mutate(solution):
                     i = rng.choice(len(handles))
                     handles.insert(_sample_expanded_bbox(edge.getStartNode().getLoc(),
                                                             edge.getEndNode.getLoc(), 1)[0])
-            edge.set_handles(handles)
+            edge.setHandles(handles)
 
             if rng.random() < MUTATION_PROB:
                 mutated = True
