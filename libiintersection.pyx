@@ -60,6 +60,8 @@ cdef extern from "libiintersection.h" namespace "ii":
         Point3d* getLoc()
         unsigned short int getID()
 
+        void setID(unsigned short int ID)
+
 
     cdef cppclass BezierCurve:
         BezierCurve()
@@ -484,8 +486,10 @@ cdef class PyIntersectionNodePointer:
         return node
 
     @staticmethod
-    def fromScenarioNode(PyScenarioNodePointer node):
-        return PyIntersectionNodePointer(node.getLoc(), UNREGULATED)
+    def fromScenarioNode(PyScenarioNodePointer sce_node):
+        cdef PyIntersectionNodePointer int_node = PyIntersectionNodePointer(sce_node.getLoc(), UNREGULATED)
+        int_node.setID(sce_node.getID())
+        return int_node
 
     def getJunctionType(self):
         return deref(self.c_intersectionnodepointer).getJunctionType()
