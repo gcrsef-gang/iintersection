@@ -324,9 +324,9 @@ class Intersection
 public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
+    Intersection(std::string solFilePath);
 
     static void Simulate(Intersection*, BACKENDS::BACKENDS_);
-    static Intersection fromSolFile(std::string solFilePath);
 
     void updateMetrics(BACKENDS::BACKENDS_);
     void markInvalid() {isValid = false;}
@@ -551,7 +551,7 @@ std::vector<ScenarioEdge*> IntersectionScenario::getEdges()
 }
 
 
-Intersection Intersection::fromSolFile(std::string solFilePath) 
+Intersection::Intersection(std::string solFilePath)
 {
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
@@ -593,8 +593,7 @@ Intersection Intersection::fromSolFile(std::string solFilePath)
         short int numLanes = static_cast<short int>(xmlEdge.attribute("numLanes").as_int());
         short int speedLimit = static_cast<short int>(xmlEdge.attribute("speed").as_int());
         BezierCurve handles;
-        pugi::xml_attribute handlesattr;
-        if (handlesattr == xmlEdge.attribute("handles")) 
+        if (xmlEdge.attribute("handles").empty() == false) 
         {
             std::string handleString = xmlEdge.attribute("handles").as_string();
             std::vector<std::string> pointsList = Split(handleString, " ");
@@ -644,8 +643,7 @@ Intersection Intersection::fromSolFile(std::string solFilePath)
         }
         routes.push_back(IntersectionRoute(routeNodes, routeEdges));
     }
-
-    return Intersection(routes);
+    this->routes = routes;
 }
 
 
@@ -880,15 +878,18 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
 
 std::string Intersection::getSolXML() 
 {
-    std::string xmlOutput = "<scenario>\n\t<nodes>\n";
-    std::stringstream nodeText;
-
+    std::string xmlOutput = "<scenario> \n \t<nodes>\n";
     for (std::shared_ptr<IntersectionNode>& node : this->getUniqueNodes()) {
-        nodeText << "\t\t<node> "
-                 << "id=\"" << node->getID() << "\" "
-                 << "x=\"" << node->getLoc()->x() << "\" y=\"" << node->getLoc()->y() << "\" z=\"" << node->getLoc()->z() << "\" "
-                 << "type=\"" << JUNCTIONTYPES_NAMES.at(node->getJunctionType()) << "\" "
-                 << "/>\n";
+        std::stringstream nodeText;
+        nodeText << "\t\t<node ";
+        nodeText << "id=\"" << std::to_string(node->getID()) << "\" ";
+        std::string x = std::to_string(node->getLoc()->x());
+        std::string y = std::to_string(node->getLoc()->y());
+        std::string z = std::to_string(node->getLoc()->z());
+        nodeText << "x=\"" << x << "\" y=\"" << y << "\" z=\"" << z << "\" ";
+        std::string type = JUNCTIONTYPES_NAMES.at(node->getJunctionType());
+        nodeText << "type=\"" << type << "\" ";
+        nodeText << "/>\n";
         
         xmlOutput += nodeText.str();
         nodeText.str(std::string());
@@ -905,25 +906,26 @@ std::string Intersection::getSolXML()
         edgeIDMap[edge] = i;
 
         std::stringstream edgeText;
-        edgeText << "\t\t<edge> "
-                 << "id=\"" << i << "\" "
-                 << "from=\"" << edge->getStartNode()->getID() << "\" "
-                 << "to=\"" << edge->getEndNode()->getID() << "\" "
-                 << "priority=\"" << edge->getPriority() << "\" "
-                 << "numLanes=\"" << edge->getNumLanes() << "\" "
-                 << "speed=\"" << edge->getSpeedLimit() << "\" ";
+        edgeText << "\t\t<edge ";
+        edgeText << "id=\"" << std::to_string(i) << "\" ";
+        // std::shared_ptr<IntersectionNode>& startNode = edge->getStartNode();
+        // std::shared_ptr<IntersectionNode>& endNode = edge->getEndNode();
+        edgeText << "from=\"" << std::to_string(edge->getStartNode()->getID()) << "\" ";
+        edgeText << "to=\"" << std::to_string(edge->getEndNode()->getID()) << "\" ";
+        edgeText << "priority=\"" << std::to_string(edge->getPriority()) << "\" ";
+        edgeText << "numLanes=\"" << std::to_string(edge->getNumLanes()) << "\" ";
+        edgeText << "speed=\"" << std::to_string(edge->getSpeedLimit()) << "\" ";
 
         std::string coordsText;
         std::vector<Point3d> points = edge->getShape().getHandles();
-
-        for (Point3d point : points)
-        {
-            coordsText += " ";
-            std::string coordText = std::to_string(point.x()) + "," + std::to_string(point.y()) + "," + std::to_string(point.z());
-            coordsText += coordText;
+        if (points.size() > 0) {
+            for (Point3d point : points) {
+                coordsText += " ";
+                std::string coordText = std::to_string(point.x()) + "," + std::to_string(point.y()) + "," + std::to_string(point.z());
+                coordsText += coordText;
+            }
+            edgeText << "handles=\"" << coordsText.substr(1) << "\" ";
         }
-        
-        edgeText << "handles=\"" << coordsText.substr(1) << "\" ";
         edgeText << "/>\n";
 
         xmlOutput += edgeText.str();
@@ -943,7 +945,6 @@ std::string Intersection::getSolXML()
             edgesText += " ";
             edgesText += std::to_string(edgeIDMap[edge]);
         }
-
         routeText << "edges=\"" << edgesText.substr(1) << "\" ";
         routeText << "/>\n";
 
@@ -961,10 +962,10 @@ std::string Intersection::getSolXML()
  */
 
 
-// void SumoInterface::performSim(const std::size_t time)
-// {
-//     net->simulate(0, SIMTIME);
-// }
+void SumoInterface::performSim(const std::size_t time)
+{
+    net->simulate(0, SIMTIME);
+}
 
 
 void SumoInterface::rebuildNet(Intersection* iint)

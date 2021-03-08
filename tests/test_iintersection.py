@@ -39,8 +39,10 @@ def test_generate_initial_population():
         print(f"Generating population for {scenario_file}... ")
         init_pop = ii.generate_inital_population(scenario)
         i = 0
-        for i in range(ii.POPULATION_SIZE):
+        for i in range(GRID_SIDELEN*GRID_SIDELEN):
             intersection = init_pop[i // ii.GRID_SIDELEN][i % ii.GRID_SIDELEN]
+            with open(f"{scenario_dir}/{i}.sol.xml", "w+") as f:
+                f.write(intersection.getSolXML())
             with open(f"{scenario_dir}/{i}.nod.xml", "w+") as f:
                 f.write(intersection.getNodeXML())
             with open(f"{scenario_dir}/{i}.edg.xml", "w+") as f:
@@ -54,11 +56,29 @@ def test_generate_initial_population():
 
 
 def test_crossover():
-    pass
-
+    scenario = ii.IntersectionScenario(f"{SCENARIO_FILES}/ny-7-787.sce.xml")
+    intersection1 = ii.Intersection.fromSolFile("tmp/init-gen/ny-7-787/0.sol.xml")
+    intersection2 = ii.Intersection.fromSolFile("tmp/init-gen/ny-7-787/1.sol.xml")
+    child = ii.crossover((intersection1, intersection2), scenario)
+    scenario_dir = "tmp/init-gen/ny-7-787"
+    with open(f"{scenario_dir}/child.sol.xml", "w+") as f:
+        f.write(child.getSolXML())
+    with open(f"{scenario_dir}/child.nod.xml", "w+") as f:
+        f.write(child.getNodeXML())
+    with open(f"{scenario_dir}/child.edg.xml", "w+") as f:
+        f.write(child.getEdgeXML())
 
 def test_mutate():
-    pass
+    scenario = ii.IntersectionScenario(f"{SCENARIO_FILES}/ny-7-787.sce.xml")
+    intersection = ii.Intersection.fromSolFile("tmp/init-gen/ny-7-787/0.sol.xml")
+    ii.mutate(intersection)
+    scenario_dir = "tmp/init-gen/ny-7-787"
+    with open(f"{scenario_dir}/mutation.sol.xml", "w+") as f:
+        f.write(intersection.getSolXML())
+    with open(f"{scenario_dir}/mutation.nod.xml", "w+") as f:
+        f.write(intersection.getNodeXML())
+    with open(f"{scenario_dir}/mutation.edg.xml", "w+") as f:
+        f.write(intersection.getEdgeXML())    
 
 
 if __name__ == "__main__":
