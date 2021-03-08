@@ -6,6 +6,7 @@ given traffic scenario.
 import argparse
 import math
 import subprocess
+import sys
 
 import numpy as np
 import scipy.optimize
@@ -16,7 +17,7 @@ from libiintersection import (
     PY_VEHICLETYPES as VEHICLETYPES,
     PyBezierCurve as BezierCurve, PyIntersection as Intersection,
     PyIntersectionRoute as IntersectionRoute, PyIntersectionEdge as IntersectionEdge,
-    PyIntersectionScenario as IntersectionScenario, PyScenarioEdge as ScenarioEdge,
+    PyIntersectionScenario as IntersectionScenario,
     PyIntersectionNodePointer as IntersectionNodePointer
 )
 
@@ -347,9 +348,7 @@ def _check_edge_intersections(intersection, edge=None):
             if edge == intersection_edge:
                 continue
             if _get_edges_intersection(edge, intersection_edge):
-                print("true")
                 return True
-        print("false")
         return False
     else:
         for edge1 in intersection_edges:
@@ -357,9 +356,7 @@ def _check_edge_intersections(intersection, edge=None):
                 if edge1 == edge2:
                     continue
                 if _get_edges_intersection(edge1, edge2):
-                    print("true")
                     return True
-        print("false")
         return False
                 
 
@@ -415,6 +412,9 @@ def generate_inital_population(input_scenario):
             ]
             # Generate a route for each edge in the input scenario.
             intersection_routes = []
+            # Keys: tuples containing start and end nodes for each edge.
+            # Values: the edges themselves.
+            edge_nodes = {}
             for input_edge in input_scenario.getEdges():
                 start_node = input_edge.getStartNode()
                 end_node = input_edge.getEndNode()
@@ -451,6 +451,10 @@ def generate_inital_population(input_scenario):
 
                     # Create bezier curve using random points inside bounding box of start and end nodes
                     # of the edge.
+                    start_end_nodes = (route_nodes[-2], route_nodes[-1])
+                    if start_end_nodes in edge_nodes:
+                        route_edges.append(edge_nodes[start_end_nodes])
+                        continue
                     num_bezier_handles = rng.choice(3)
                     start_coords = route_nodes[-2].getLoc()
                     end_coords = route_nodes[-1].getLoc()
@@ -467,20 +471,21 @@ def generate_inital_population(input_scenario):
                     edge = IntersectionEdge(route_nodes[-2], route_nodes[-1], bezier_curve, num_lanes,
                                             speed_limit, priority)
                     route_edges.append(edge)
-
+                    edge_nodes[(edge.getStartNode().getID(), edge.getEndNode().getID())] = edge
                     if exit_:
                         break
                 intersection_routes.append(IntersectionRoute(route_nodes, route_edges))
-            # print("hello6")
             intersection = Intersection(intersection_routes)
             if not _check_edge_intersections(intersection):
-                print("works!")
                 # Create a new row of intersections.
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
                 intersections[-1].append(intersection)
+                sys.stdout.write(f"\rCreated {i + 1} intersections")
+                sys.stdout.flush()
                 break
 
+    print()
     return intersections
 
 
@@ -595,9 +600,6 @@ def crossover(parents, input_scenario):
         child_route_nodes = [child_route_edges[0].getStartNode()]
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
-
-        for node in child_route_nodes:
-            node.addReference()
 
         child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
@@ -782,7 +784,6 @@ def mutate(solution):
                             new_edges_route_.append(_transform_edge(parent, child, repl_edge))
                     route_.setEdgeList(new_edges_route_)
 
-                node.removeReference()
                 continue
 
             if rng.random() < MUTATION_PROB:
@@ -810,7 +811,6 @@ def mutate(solution):
                         new_nodes_route_ = route_.getNodeList()
                         new_nodes_route_[node_index] = node
                         route_.setNodeList(new_nodes_route_)
-                node.removeReference()
 
         # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
@@ -870,7 +870,7 @@ def evaluate_fitness(solution, intersectionscenario=None):
                 simulation_collisions += collisions_num
                 simulation_travel_times += travel_times_sum
             return simulation_collisions, simulation_travel_times, simulation_emissions
-        solution.simulate(BACKEND)
+        Intersection.Simulate(solution, BACKEND)
         solution.updateMetrics(BACKEND)
     else:
         solution.markInvalid()
@@ -938,16 +938,8 @@ def optimize(input_scenario):
 
             # Place the chosen individual in the population and possibly in the Pareto front.
             intermediate_population[pos[0]].append(replacement_solution)
-            if replacement_solution is offspring:
-                # A reference is getting deleted to each of the nodes in the intersection that will
-                # no longer be part of the the population.
-                for node in current_individual.getUniqueNodes():
-                    node.removeReference()
-                if dominant:
+            if replacement_solution is offspring and dominant:
                     update_pareto_front(est_pareto_front, replacement_solution, current_individual)
-            else:
-                for node in offspring.getUniqueNodes():
-                    node.removeReference()
         population = intermediate_population
 
     return est_pareto_front

@@ -9,7 +9,10 @@ setup(
             "libiintersection",
             sources=["libiintersection.pyx"],
             language="c++",
-            extra_compile_args=["-DPUGIXML_HEADER_ONLY", "-Ilib/", "-Ilib/sumo/src/", "-Ilib/sumo/build/src/", "-Ilib/sumo/build/cmake-build/src/", "-I/usr/include/fox-1.6/", "-lxerces-c", "-lz", "-lproj", "-lFOX-1.6", "-lX11", "-lXext", "-lfreetype", "-lfontconfig", "-lXft", "-lXcursor", "-lXrender", "-lXrandr", "-lXfixes", "-lXi", "-lGL", "-lGLU", "-ldl", "-lpthread", "-lrt", "-ljpeg", "-lpng", "-ltiff", "-lz", "-lbz2", "-lGLU", "-lGL", "-llib/sumo/sumo"]
+            include_dirs=["lib/", "lib/sumo/src", "lib/sumo/build/src/",
+                          "lib/sumo/build/cmake-build/src/", "/usr/include/fox-1.6/"],
+            libraries=["xerces-c", "z", "proj", "FOX-1.6", "X11", "Xext", "freetype", "fontconfig", "Xft", "Xcursor", "Xrender", "Xrandr", "Xfixes", "Xi", "GL", "GLU", "dl", "pthread", "rt", "jpeg", "png", "tiff", "z", "bz2", "lib/sumo/sumo"],
+            extra_compile_args=["-DPUGIXML_HEADER_ONLY"]
         ),
         language_level="3"
     )
