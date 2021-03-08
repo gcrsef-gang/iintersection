@@ -17,7 +17,7 @@ from libiintersection import (
     PY_VEHICLETYPES as VEHICLETYPES,
     PyBezierCurve as BezierCurve, PyIntersection as Intersection,
     PyIntersectionRoute as IntersectionRoute, PyIntersectionEdge as IntersectionEdge,
-    PyIntersectionScenario as IntersectionScenario, PyScenarioEdge as ScenarioEdge,
+    PyIntersectionScenario as IntersectionScenario,
     PyIntersectionNodePointer as IntersectionNodePointer
 )
 
@@ -481,7 +481,7 @@ def generate_inital_population(input_scenario):
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
                 intersections[-1].append(intersection)
-                sys.stdout.write(f"\rCreated {i} intersections")
+                sys.stdout.write(f"\rCreated {i + 1} intersections")
                 sys.stdout.flush()
                 break
 
@@ -600,9 +600,6 @@ def crossover(parents, input_scenario):
         child_route_nodes = [child_route_edges[0].getStartNode()]
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
-
-        for node in child_route_nodes:
-            node.addReference()
 
         child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
@@ -787,7 +784,6 @@ def mutate(solution):
                             new_edges_route_.append(_transform_edge(parent, child, repl_edge))
                     route_.setEdgeList(new_edges_route_)
 
-                node.removeReference()
                 continue
 
             if rng.random() < MUTATION_PROB:
@@ -815,7 +811,6 @@ def mutate(solution):
                         new_nodes_route_ = route_.getNodeList()
                         new_nodes_route_[node_index] = node
                         route_.setNodeList(new_nodes_route_)
-                node.removeReference()
 
         # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
@@ -875,7 +870,7 @@ def evaluate_fitness(solution, intersectionscenario=None):
                 simulation_collisions += collisions_num
                 simulation_travel_times += travel_times_sum
             return simulation_collisions, simulation_travel_times, simulation_emissions
-        solution.simulate(BACKEND)
+        Intersection.Simulate(solution, BACKEND)
         solution.updateMetrics(BACKEND)
     else:
         solution.markInvalid()
@@ -943,16 +938,8 @@ def optimize(input_scenario):
 
             # Place the chosen individual in the population and possibly in the Pareto front.
             intermediate_population[pos[0]].append(replacement_solution)
-            if replacement_solution is offspring:
-                # A reference is getting deleted to each of the nodes in the intersection that will
-                # no longer be part of the the population.
-                for node in current_individual.getUniqueNodes():
-                    node.removeReference()
-                if dominant:
+            if replacement_solution is offspring and dominant:
                     update_pareto_front(est_pareto_front, replacement_solution, current_individual)
-            else:
-                for node in offspring.getUniqueNodes():
-                    node.removeReference()
         population = intermediate_population
 
     return est_pareto_front

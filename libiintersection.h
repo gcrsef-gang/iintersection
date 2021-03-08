@@ -295,7 +295,6 @@ public:
     ScenarioEdge(std::shared_ptr<ScenarioNode> s, std::shared_ptr<ScenarioNode> e, std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand) : Edge(s, e), demand(demand) {}
 
     std::map<VEHICLETYPES::VEHICLETYPES_, short int> getDemand() {return this->demand;}
-
 private:
     std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 };
@@ -325,9 +324,10 @@ class Intersection
 public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
-    Intersection(std::string solFilePath);
 
     static void Simulate(Intersection*, BACKENDS::BACKENDS_);
+    static Intersection fromSolFile(std::string solFilePath);
+
     void updateMetrics(BACKENDS::BACKENDS_);
     void markInvalid() {isValid = false;}
     double getMetric(METRICS::METRICS_);
@@ -370,7 +370,7 @@ public:
     IntersectionScenario(std::string xmlFilePath);
 
     std::vector<std::shared_ptr<ScenarioNode> > getNodes() const {return this->nodes;}
-    std::vector<ScenarioEdge> getEdges() const {return this->edges;}
+    std::vector<ScenarioEdge*> getEdges();
 
 private:
     std::vector<std::shared_ptr<ScenarioNode> > nodes;
@@ -540,7 +540,18 @@ IntersectionScenario::IntersectionScenario(std::string xmlFilePath)
 }
 
 
-Intersection::Intersection(std::string solFilePath) 
+std::vector<ScenarioEdge*> IntersectionScenario::getEdges()
+{
+    std::vector<ScenarioEdge*> edgePtrs;
+    for (ScenarioEdge& edge : edges)
+    {
+        edgePtrs.push_back(&edge);
+    }
+    return edgePtrs;
+}
+
+
+Intersection Intersection::fromSolFile(std::string solFilePath) 
 {
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
@@ -609,7 +620,7 @@ Intersection::Intersection(std::string solFilePath)
         edgeVector.push_back(edge);
     }
 
-    std::vector<IntersectionRoute> routeVector;
+    std::vector<IntersectionRoute> routes;
 
     // Append routes to vector.
     pugi::xml_node routesList = xmlScenario.child("routes");
@@ -631,10 +642,10 @@ Intersection::Intersection(std::string solFilePath)
             }
             routeEdges.push_back(edgeIDMap[edges[i]]);
         }
-        routeVector.push_back(IntersectionRoute(routeNodes, routeEdges));
+        routes.push_back(IntersectionRoute(routeNodes, routeEdges));
     }
 
-    routes = routeVector;
+    return Intersection(routes);
 }
 
 
@@ -807,7 +818,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
               << "\n";
 
 
-    std::vector<ScenarioEdge> scenarioEdges = intersectionScenario.getEdges();    
+    std::vector<ScenarioEdge*> scenarioEdges = intersectionScenario.getEdges();    
     std::vector<std::string> vehicleTypes {"car", "truck"};
 
 
@@ -846,11 +857,11 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
 
             std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
 
-            for (ScenarioEdge scenarioEdge : scenarioEdges)
+            for (ScenarioEdge* scenarioEdge : scenarioEdges)
             {
-                if (routeEdges[0]->getStartNode()->getID() == scenarioEdge.getStartNode()->getID() && routeEdges[routeEdges.size()-1]->getEndNode()->getID() == scenarioEdge.getEndNode()->getID())
+                if (routeEdges[0]->getStartNode()->getID() == scenarioEdge->getStartNode()->getID() && routeEdges[routeEdges.size()-1]->getEndNode()->getID() == scenarioEdge->getEndNode()->getID())
                 {
-                    demand = scenarioEdge.getDemand();
+                    demand = scenarioEdge->getDemand();
                 }
             }
 
@@ -888,7 +899,7 @@ std::string Intersection::getSolXML()
     std::vector<IntersectionEdge*> edgeList = this->getUniqueEdges();
     std::map<IntersectionEdge*, int> edgeIDMap;
 
-    for (int i = 0; i < edgeList.size(); i++)
+    for (std::size_t i = 0; i < edgeList.size(); i++)
     {
         IntersectionEdge* edge = edgeList[i];
         edgeIDMap[edge] = i;
