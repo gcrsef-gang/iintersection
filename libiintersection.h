@@ -208,6 +208,8 @@ public:
     Point3d* getLoc() {return &(this->loc);}
     unsigned short int getID() const {return this->UUID;}
 
+    void setID(unsigned short int ID) {this->UUID = ID;}
+
 protected:
     unsigned short int UUID;
 
