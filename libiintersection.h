@@ -772,11 +772,20 @@ std::string Intersection::getEdgeXML()
         }
     }
 
+    // A map which just holds vectors of start and end ids, in order to make sure there are not duplicate edges
+    std::map<short int, short int> connections;
     std::string xmlOutput = "<edges>\n";
     std::stringstream edgeTag;
 
     for (std::size_t i = 0; i < edges.size(); i++)
     {
+        if (edges[i]->getStartNode() == edges[i]->getEndNode()) {
+            continue;
+        }
+        else if (connections.at({edges[i]->getStartNode().getID()) == edges[i]->getEndNode().getID()}) {
+            continue;
+        }
+        connections[edges[i]->getStartNode().getID()] = edges[i]->getEndNode().getID();
         edgeTag << "\t<edge id=\"" << i << "e\" ";
         edgeTag << "from=\"" << sumoNodeIDs[edges[i]->getStartNode()] << "\" ";
         edgeTag << "to=\"" << sumoNodeIDs[edges[i]->getEndNode()] << "\" ";
