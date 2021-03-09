@@ -5,6 +5,7 @@ given traffic scenario.
 
 import argparse
 import math
+import os
 import subprocess
 import sys
 
@@ -25,11 +26,13 @@ from libiintersection import (
 # Default values; can be changed by command-line args.
 BACKEND = BACKENDS["sumo"]
 MAX_EVALUATIONS = 25000
-POPULATION_SIZE = 400
+# POPULATION_SIZE = 400
+POPULATION_SIZE = 4
 GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
 
-SIMULATION_TIME = 604800
+# SIMULATION_TIME = 604800
+SIMULATION_TIME = 600
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
@@ -97,15 +100,12 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
     IntersectionRoute
         The route from `intersection` that corresponds to `scenario_edge`.
     """
-    corresponding_routes = []
     for route in intersection.getRoutes():
         route_nodes = route.getNodeList()
         same_start_nodes = route_nodes[0].getLoc() == scenario_edge.getStartNode().getLoc()
         # Second equality test not run if same_start_nodes is false.
         if same_start_nodes and route_nodes[-1].getLoc() == scenario_edge.getEndNode().getLoc():
-            corresponding_routes.append(route)
-    return corresponding_routes[rng.choice(len(corresponding_routes))]
-    # return corresponding_routes[rng.choice(2)]
+            return route
 
 
 def _get_dominant_solution(intersection1, intersection2):
@@ -362,13 +362,16 @@ def _check_edge_intersections(intersection, edge=None):
         return False
                 
 
-def generate_inital_population(input_scenario):
+def generate_inital_population(input_scenario, output_dir=None):
     """Generates the initial grid of solutions.
 
     Parameters
     ----------
     input_scenario: IntersectionScenario
         An input scenario on which is based the generation of intersections.
+    output_dir: NoneType or str, optional
+        The directory to which files node, edge, and solution XML files will be outputted as
+        intersections are generated. If set to `None`, no files are written. Default is `None`.
 
     Returns
     -------
@@ -391,8 +394,7 @@ def generate_inital_population(input_scenario):
     input_nodes_min_z = min([loc[2] for loc in input_nodes_coords])
     POSITION_MUTATION_CUBE_LENGTH = math.sqrt((input_nodes_max_x-input_nodes_min_x)* \
             (input_nodes_max_y-input_nodes_min_y)) * POSITION_MUTATION_FACTOR
-    # for i in range(POPULATION_SIZE):
-    for i in [0, 1]:
+    for i in range(POPULATION_SIZE):
         while True:
             # Choose points on a normal distribution scaled according to the locations of the nodes in
             # the input scenario.
@@ -484,12 +486,20 @@ def generate_inital_population(input_scenario):
                 if i % GRID_SIDELEN == 0:
                     intersections.append([])
                 intersections[-1].append(intersection)
-                sys.stdout.write(f"\rCreated {i + 1} intersections")
+                sys.stdout.write(f"\r\033[92mCreated {i + 1} intersections\033[00m")
                 sys.stdout.flush()
                 break
 
-        with open(f"tmp/init-gen/ny-7-787/{i}.sol.xml", "w+") as f:
-            f.write(intersection.getSolXML())
+        if output_dir is not None:
+            with open(os.path.join(output_dir, f"{i + 1}.sol.xml"), "w+") as f:
+                f.write(intersection.getSolXML())
+            with open(os.path.join(output_dir, f"{i + 1}.nod.xml"), "w+") as f:
+                f.write(intersection.getNodeXML())
+            with open(os.path.join(output_dir, f"{i + 1}.edg.xml"), "w+") as f:
+                f.write(intersection.getEdgeXML())
+    
+    print()
+
     return intersections
 
 
@@ -604,8 +614,6 @@ def crossover(parents, input_scenario):
         child_route_nodes = [child_route_edges[0].getStartNode()]
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
-
-        print(child_route_edges, "ok!")
         child_routes.append(IntersectionRoute(child_route_nodes, child_route_edges))
 
     return Intersection(child_routes) 
@@ -624,7 +632,7 @@ def mutate(solution):
     """
     routes = solution.getRoutes()
     for route in routes:
-        nodes = route.getNodeList()[1:-1]
+        nodes = route.getNodeList()
         edges = route.getEdgeList()
         new_nodes = nodes[:]
         new_edges = []
@@ -638,13 +646,13 @@ def mutate(solution):
                 if rng.choice(2):
                     # Create new node.
                     loc = _sample_expanded_bbox(edge.getStartNode().getLoc(),
-                                                edge.getEndNode.getLoc(), 1)[0]
-                    junction_type = rng.choice(JUNCTIONTYPES.values())
-                    new_node = IntersectionNodePointer(loc, junction_type)
+                                                edge.getEndNode().getLoc(), 1)[0]
+                    junction_type = rng.choice(list(JUNCTIONTYPES.values()))
+                    new_node = IntersectionNodePointer(tuple(loc), junction_type)
                 else:
                     # Choose existing node.
-                    new_node = rng.choice([node for route_ in routes for node in route_.getNodesList()])
-                new_nodes.insert(new_nodes.index(edge.getEndNode()), new_node)
+                    new_node = rng.choice([node for route_ in routes for node in route_.getNodeList()])
+                new_nodes.insert(new_nodes.index(edge.getStartNode()), new_node)
                 # Create new edges.
                 for _ in range(2):
                     repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
@@ -674,9 +682,12 @@ def mutate(solution):
                         for coord in handles[i]
                     ]
                 elif mutation_type == 2:
-                    i = rng.choice(len(handles))
-                    handles.insert(_sample_expanded_bbox(edge.getStartNode().getLoc(),
-                                                            edge.getEndNode.getLoc(), 1)[0])
+                    try:
+                        i = rng.choice(len(handles))
+                    except ValueError:
+                        i = 1
+                    handles.insert(i, _sample_expanded_bbox(edge.getStartNode().getLoc(),
+                                                            edge.getEndNode().getLoc(), 1)[0])
             edge.setHandles(handles)
 
             if rng.random() < MUTATION_PROB:
@@ -728,7 +739,7 @@ def mutate(solution):
             new_edges.append(edge)
 
         # Mutating nodes.
-        for node in nodes:
+        for node in nodes[1:-1]:
 
             if rng.random() < MUTATION_PROB:
                 # Deleting a node from the route:
@@ -749,7 +760,7 @@ def mutate(solution):
                 new_edges = [edge for edge in new_edges if edge not in to_remove]
                 for child in children:
                     for parent in parents:
-                        repl_edge = rng.choice([edge for route_ in routes for edge in route_])
+                        repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
                         new_edges.append(_transform_edge(parent, child, repl_edge))
                 new_nodes.remove(node)                        
 
@@ -785,7 +796,7 @@ def mutate(solution):
                     # Add replacement edges for disconnected neighbors.
                     for child in children:
                         for parent in parents:
-                            repl_edge = rng.choice([edge for route__ in routes for edge in route__])
+                            repl_edge = rng.choice([edge for route__ in routes for edge in route__.getEdgeList()])
                             new_edges_route_.append(_transform_edge(parent, child, repl_edge))
                     route_.setEdgeList(new_edges_route_)
 

@@ -13,6 +13,9 @@ libiintersection.o
 __pycache__/
 iintersection.egg-info
 
+# SUMO Compilation
+libsumo.a
+
 # Misc.
 test.cpp
 test.py

@@ -330,9 +330,9 @@ class Intersection
 public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
-    Intersection(std::string solFilePath);
 
     static void Simulate(Intersection*, BACKENDS::BACKENDS_);
+    static Intersection fromSolFile(std::string solFilePath);
 
     void updateMetrics(BACKENDS::BACKENDS_);
     void markInvalid() {isValid = false;}
@@ -557,7 +557,7 @@ std::vector<ScenarioEdge*> IntersectionScenario::getEdges()
 }
 
 
-Intersection::Intersection(std::string solFilePath)
+Intersection Intersection::fromSolFile(std::string solFilePath)
 {
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
@@ -649,7 +649,7 @@ Intersection::Intersection(std::string solFilePath)
         }
         routes.push_back(IntersectionRoute(routeNodes, routeEdges));
     }
-    this->routes = routes;
+    return Intersection(routes);
 }
 
 
@@ -777,22 +777,25 @@ std::string Intersection::getEdgeXML()
     }
 
     // A map which just holds vectors of start and end ids, in order to make sure there are not duplicate edges
-    std::map<short int, short int> connections;
+    std::vector<std::pair<unsigned short int, unsigned short int>> connections;
     std::string xmlOutput = "<edges>\n";
     std::stringstream edgeTag;
 
     for (std::size_t i = 0; i < edges.size(); i++)
     {
-        if (edges[i]->getStartNode() == edges[i]->getEndNode()) {
+        std::shared_ptr<IntersectionNode> startNode = edges[i]->getStartNode();
+        std::shared_ptr<IntersectionNode> endNode = edges[i]->getEndNode();
+        bool looping = startNode == endNode;
+        std::pair<unsigned short int, unsigned short int> connection = {startNode->getID(), endNode->getID()};
+        bool duplicate = std::find(connections.begin(), connections.end(), connection) != connections.end();
+        if (looping || duplicate)
+        {
             continue;
         }
-        else if (connections.at({edges[i]->getStartNode().getID()) == edges[i]->getEndNode().getID()}) {
-            continue;
-        }
-        connections[edges[i]->getStartNode().getID()] = edges[i]->getEndNode().getID();
+
         edgeTag << "\t<edge id=\"" << i << "e\" ";
-        edgeTag << "from=\"" << sumoNodeIDs[edges[i]->getStartNode()] << "\" ";
-        edgeTag << "to=\"" << sumoNodeIDs[edges[i]->getEndNode()] << "\" ";
+        edgeTag << "from=\"" << sumoNodeIDs[startNode] << "\" ";
+        edgeTag << "to=\"" << sumoNodeIDs[endNode] << "\" ";
         edgeTag << "priority=\"" << edges[i]->getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i]->getNumLanes() << "\" ";
         edgeTag << "speed=\"" << edges[i]->getSpeedLimit() << "\" ";
