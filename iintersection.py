@@ -26,13 +26,11 @@ from libiintersection import (
 # Default values; can be changed by command-line args.
 BACKEND = BACKENDS["sumo"]
 MAX_EVALUATIONS = 25000
-# POPULATION_SIZE = 400
-POPULATION_SIZE = 4
+POPULATION_SIZE = 400
 GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
 
-# SIMULATION_TIME = 604800
-SIMULATION_TIME = 600
+SIMULATION_TIME = 604800
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
