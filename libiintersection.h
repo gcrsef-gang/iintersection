@@ -23,8 +23,10 @@
 #include <microsim/MSNet.h>
 #include <microsim/MSJunctionControl.h>
 #include <utils/shapes/ShapeContainer.h>
+#include <utils/vehicle/SUMORouteLoaderControl.h>
 #include <utils/options/OptionsCont.h>
 #include <microsim/MSEdgeControl.h>
+#include <microsim/traffic_lights/MSTLLogicControl.h>
 #endif
 
 
@@ -62,8 +64,8 @@ class IntersectionScenario;
 
 
 // Tracking current max node ID
-static unsigned short int CURRENT_NODE_UUID_MAX = 0;
-static unsigned short int CURRENT_EDGE_UUID_MAX = 0;
+static unsigned short int CURRENT_NODE_UUID_MAX = -1;
+static unsigned short int CURRENT_EDGE_UUID_MAX = -1;
 
 static const short int BEZIER_SAMPLES = 500;
 static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
@@ -244,6 +246,8 @@ public:
     Edge(std::shared_ptr<Node> s, std::shared_ptr<Node> e) : s(s), e(e) {this->UUID = ++CURRENT_EDGE_UUID_MAX;};
     std::shared_ptr<Node> getStartNode() const {return s;}
     std::shared_ptr<Node> getEndNode() const {return e;}
+
+    unsigned short int getId() const {return this->UUID;}
 
 protected:
     unsigned short int UUID;
@@ -983,6 +987,11 @@ void SumoInterface::rebuildNet(Intersection* iint)
 {
     MSJunctionControl* junctionCtl = this->buildSumoJunctions(iint->getUniqueNodes());
     MSEdgeControl* edgeCtl = this->buildSumoEdges(iint->getUniqueEdges(), iint->getUniqueNodes(), junctionCtl);
+    
+    SUMORouteLoaderControl* routeLoaders = new SUMORouteLoaderControl(0);
+    MSTLLogicControl* logicCtl = new MSTLLogicControl();
+
+    this->net->closeBuilding(OptionsCont::getOptions(), edgeCtl, junctionCtl, routeLoaders, logicCtl, {0, 100}, {"test1.state", "test2.state"}, false, 1.05);
 }
 
 
@@ -1023,10 +1032,11 @@ MSEdgeControl* SumoInterface::buildSumoEdges(std::vector<IntersectionEdge*> iied
 
 MSEdge* SumoInterface::buildSumoEdge(IntersectionEdge* iiedge)
 {
-    MSEdge* edge = new MSEdge(std::string(""), iiedge->getStartNode()->getID(), SumoXMLEdgeFunc::UNKNOWN, "mr bob's street", "UNKNOWN", iiedge->getPriority(), LineDistance(iiedge->getShape().rasterize(BEZIER_SAMPLES)));    
-    std::vector<MSLane*> lanes = this->buildSumoLanes(iiedge, edge);
-    edge->initialize(&lanes);
+    MSEdge* edge = new MSEdge(std::string(), iiedge->getStartNode()->getID(), SumoXMLEdgeFunc::UNKNOWN, "mr bob's street", "UNKNOWN", iiedge->getPriority(), LineDistance(iiedge->getShape().rasterize(BEZIER_SAMPLES)));    
+    std::vector<MSLane*>* lanes = new std::vector<MSLane*> (this->buildSumoLanes(iiedge, edge));
+    edge->initialize(lanes);
     edge->setJunctions(nodeJunctionMap[iiedge->getStartNode()], nodeJunctionMap[iiedge->getEndNode()]);
+    MSEdge::dictionary(std::to_string(iiedge->getId()), edge);
     return edge;
 }
 
@@ -1054,6 +1064,7 @@ MSLane* SumoInterface::buildSumoLane(IntersectionEdge* iiedge, MSEdge* edge, int
     }
 
     MSLane* lane = new MSLane(std::to_string(id), iiedge->getSpeedLimit(), static_cast<float>(LineDistance(iiedge->getShape().rasterize(BEZIER_SAMPLES))), edge, id, shape, -1, SVC_UNSPECIFIED, SVC_UNSPECIFIED, SVC_UNSPECIFIED, id, false, "UNSPECIFIED");
+    MSLane::dictionary(std::to_string(id), lane);
     return lane;
 }
 
