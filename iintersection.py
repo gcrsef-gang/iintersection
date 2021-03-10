@@ -100,10 +100,16 @@ def _get_route_from_scenario_edge(intersection, scenario_edge):
     """
     for route in intersection.getRoutes():
         route_nodes = route.getNodeList()
-        same_start_nodes = route_nodes[0].getLoc() == scenario_edge.getStartNode().getLoc()
+        same_start_nodes = route_nodes[0].getID() == scenario_edge.getStartNode().getID()
+
         # Second equality test not run if same_start_nodes is false.
-        if same_start_nodes and route_nodes[-1].getLoc() == scenario_edge.getEndNode().getLoc():
+        if same_start_nodes and route_nodes[-1].getID() == scenario_edge.getEndNode().getID():
             return route
+
+        same_start_loc = route_nodes[0].getLoc() == scenario_edge.getStartNode().getLoc()
+        if route_nodes[-1].getLoc() == scenario_edge.getEndNode().getLoc():
+            return route
+        
 
 
 def _get_dominant_solution(intersection1, intersection2):
@@ -496,7 +502,6 @@ def generate_inital_population(input_scenario, output_dir=None):
             with open(os.path.join(output_dir, f"{i + 1}.edg.xml"), "w+") as f:
                 f.write(intersection.getEdgeXML())
     
-    print()
 
     return intersections
 
@@ -522,13 +527,14 @@ def get_neighborhood(position, grid):
     if NEIGHBORHOOD_TYPE == "S_3":
         x_positions = [position[0]+x for x in range(-1, 2)]
         y_positions = [position[1]+y for y in range(-1, 2)]
-        if position[0] == 0:
+        # for position_list in [x_positions, y_positions]:
+        if x_positions[0] == -1:
             x_positions[0] = GRID_SIDELEN - 1
-        elif position[1] == GRID_SIDELEN:
+        elif x_positions[2] == GRID_SIDELEN:
             x_positions[2] = 0
-        if position[1] == 0:
+        if y_positions[1] == -1:
             y_positions[0] = GRID_SIDELEN - 1
-        elif position[1] == GRID_SIDELEN:
+        elif y_positions[2] == GRID_SIDELEN:
             y_positions[2] = 0
         for x_pos in x_positions:
             for y_pos in y_positions:
@@ -553,8 +559,10 @@ def select_parents(neighborhood):
         The two winners of the binary tournament.
     """
     halfway = len(neighborhood) // 2
-    shuffled_neighborhood = rng.shuffle(neighborhood)
-    neighborhoodlists = [shuffled_neighborhood[:halfway], shuffled_neighborhood[halfway:]]
+    # shuffled_neighborhood = rng.shuffle(neighborhood)
+    rng.shuffle(neighborhood)
+    # neighborhoodlists = [shuffled_neighborhood[:halfway], shuffled_neighborhood[halfway:]]
+    neighborhoodlists = [neighborhood[:halfway], neighborhood[halfway:]]
     parents = []
     for neighborhoodlist in neighborhoodlists:
         while len(neighborhoodlist) > 1:
@@ -608,7 +616,6 @@ def crossover(parents, input_scenario):
                                                          edge.getEndNode(), repl_edge))
             else:
                 child_route_edges.append(edge)
-
         child_route_nodes = [child_route_edges[0].getStartNode()]
         for edge in child_route_edges:
             child_route_nodes.append(edge.getEndNode())
@@ -740,6 +747,7 @@ def mutate(solution):
         for node in nodes[1:-1]:
 
             if rng.random() < MUTATION_PROB:
+
                 # Deleting a node from the route:
                 # Replacing it and the edges that go into and out of it with a single edge.
 
@@ -755,7 +763,13 @@ def mutate(solution):
                         to_remove.append(edge)
                         parents.append(edge.getStartNode())
                 # Add replacement edges for disconnected neighbors.
-                new_edges = [edge for edge in new_edges if edge not in to_remove]
+                to_remove_edges = {edge.getStartNode().getID() : edge.getEndNode().getID() for edge in to_remove}
+                # new_edges = []
+                for edge in new_edges:
+                    if edge.getStartNode().getID() in list(to_remove_edges.keys()):
+                        if to_remove_edges[edge.getStartNode().getID()] != edge.getEndNode().getID():
+                            new_edges.append(edge)
+                # new_edges = [edge for edge in new_edges if to_remove_nodes[edge.getStartNode().getID()] != edge.getEndNode().getID()]
                 for child in children:
                     for parent in parents:
                         repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
@@ -802,16 +816,16 @@ def mutate(solution):
 
             if rng.random() < MUTATION_PROB:
                 attribute = rng.choice(2)
-                if attribute == 1:
+                if attribute == 0:
                     new_junction_type = rng.choice(list(JUNCTIONTYPES.values()))
                     new_node = IntersectionNodePointer(node.getLoc(), new_junction_type)
-                if attribute == 2:
+                if attribute == 1:
                     current_loc = node.getLoc()
                     new_loc = [
                         round((POSITION_MUTATION_CUBE_LENGTH * (rng.random() - 0.5)) + coord)
                         for coord in current_loc
                     ]
-                    new_node = IntersectionNodePointer(new_loc, node.getJunctionType())
+                    new_node = IntersectionNodePointer(tuple(new_loc), node.getJunctionType())
                 # Replace `node` with `new_node`
                 for n, node_ in enumerate(new_nodes):
                     if node_ == node:
@@ -825,7 +839,8 @@ def mutate(solution):
                         new_nodes_route_ = route_.getNodeList()
                         new_nodes_route_[node_index] = node
                         route_.setNodeList(new_nodes_route_)
-
+        if new_edges == []:
+            raise Exception("Flagged!")
         # In-place on Intersection object because getRoutes() returns route pointers.
         route.setNodeList(new_nodes)
         route.setEdgeList(new_edges)
@@ -850,45 +865,45 @@ def evaluate_fitness(solution, intersectionscenario=None):
     is_valid = _check_edge_intersections(solution)
     if is_valid:
         # traci is being used
-        if BACKEND == BACKENDS["traci"]:
-            with open("traci/traci.nod.xml", "w+") as f:
-                f.write(intersection.getNodeXML())
-            with open("traci/traci.edg.xml", "w+") as f:
-                f.write(intersection.getEdgeXML())
-            subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
-            with open("traci/traci.rou.xml", "w+") as f:
-                f.write(intersection.getRouteXML(intersectionscenario))
+        # if BACKEND == BACKENDS["traci"]:
+        with open("traci/traci.nod.xml", "w+") as f:
+            f.write(intersection.getNodeXML())
+        with open("traci/traci.edg.xml", "w+") as f:
+            f.write(intersection.getEdgeXML())
+        subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
+        with open("traci/traci.rou.xml", "w+") as f:
+            f.write(intersection.getRouteXML(intersectionscenario))
 
-            traci.start(["sumo", "-c", "traci/traci.sumocfg"])
-            step = 0
-            simulation_emissions = 0
-            simulation_collisions = 0
-            simulation_travel_times = 0
-            while step < SIMULATION_TIME:
-                traci.simulationStep()
+        traci.start(["sumo", "-c", "traci/traci.sumocfg"])
+        step = 0
+        simulation_emissions = 0
+        simulation_collisions = 0
+        simulation_travel_times = 0
+        while step < SIMULATION_TIME:
+            traci.simulationStep()
 
-                emissions_sum = 0
-                vehicle_id_list = traci.vehicle.getIDList()
-                for vehicle_id in vehicle_id_list:
-                    emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
+            emissions_sum = 0
+            vehicle_id_list = traci.vehicle.getIDList()
+            for vehicle_id in vehicle_id_list:
+                emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
 
-                collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
+            collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
 
-                travel_times_sum = 0
-                edge_ids = traci.edge.getIDList()
-                for edge_id in edge_ids:
-                    travel_times_sum += traci.edge.getTraveltime(edge_id)
-                
-                
-                simulation_emissions += emissions_sum
-                simulation_collisions += collisions_num
-                simulation_travel_times += travel_times_sum
-            return simulation_collisions, simulation_travel_times, simulation_emissions
-        Intersection.Simulate(solution, BACKEND)
-        solution.updateMetrics(BACKEND)
+            travel_times_sum = 0
+            edge_ids = traci.edge.getIDList()
+            for edge_id in edge_ids:
+                travel_times_sum += traci.edge.getTraveltime(edge_id)
+            
+            
+            simulation_emissions += emissions_sum
+            simulation_collisions += collisions_num
+            simulation_travel_times += travel_times_sum
+        return simulation_collisions, simulation_travel_times, simulation_emissions
+        # Intersection.Simulate(solution, BACKEND)
+        # solution.updateMetrics(BACKEND)
     else:
         solution.markInvalid()
-    return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
+    # return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
     """Updates a Pareto front.
@@ -933,6 +948,8 @@ def optimize(input_scenario):
             evaluate_fitness(solution, input_scenario)
     num_evaluations = POPULATION_SIZE
 
+    print("\n")
+
     # Mainloop:
     while num_evaluations < MAX_EVALUATIONS:
         intermediate_population = [[] for _ in range(GRID_SIDELEN)]
@@ -941,7 +958,7 @@ def optimize(input_scenario):
             pos = (i // GRID_SIDELEN, i % GRID_SIDELEN)
             neighborhood = get_neighborhood(pos, population)
             parents = select_parents(neighborhood)
-            offspring = crossover(parents)
+            offspring = crossover(parents, input_scenario)
             mutate(offspring)
 
             # Choose an individual.
@@ -954,6 +971,9 @@ def optimize(input_scenario):
             intermediate_population[pos[0]].append(replacement_solution)
             if replacement_solution is offspring and dominant:
                     update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+
+            sys.stdout.write(f"\r\033[92mEvaluations: {num_evaluations} \033[00m")
+            sys.stdout.flush()
         population = intermediate_population
 
     return est_pareto_front
@@ -981,13 +1001,14 @@ if __name__ == "__main__":
         if math.sqrt(args.population_size) % 1 != 0:
             raise ValueError("Population size must be a perfect square.")
         POPULATION_SIZE = args.population_size
+        GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
     # Run optimization algorithm.
     optimized_intersections = optimize(input_scenario)
 
     # Output optimized intersections.
-    node_output_files = [f"intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
-    edge_output_files = [f"intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
+    node_output_files = [f"sol_intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
+    edge_output_files = [f"sol_intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
     for i, intersection in enumerate(optimized_intersections):
         with open(node_output_files[i], "w+") as f:
             f.write(node_output_files[i], intersection.getNodeXML())
