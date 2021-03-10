@@ -1002,7 +1002,7 @@ std::string Intersection::getSolXML()
     }
     
     xmlOutput += "\t</edges>\n\n\t<routes>\n";
-    
+     
     for (IntersectionRoute* route : this->getRoutes())
     {
         std::stringstream routeText;

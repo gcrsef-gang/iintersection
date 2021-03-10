@@ -33,31 +33,6 @@ cdef extern from "libiintersection.h" namespace "ii::JUNCTIONTYPES":
 
 cdef extern from "libiintersection.h" namespace "ii":
 
-    cdef cppclass IntersectionScenario:
-        IntersectionScenario()
-        IntersectionScenario(vector[shared_ptr[ScenarioNode]] nodes, vector[ScenarioEdge] edges) except +
-        IntersectionScenario(string xmlFilePath)
-        vector[shared_ptr[ScenarioNode]] getNodes()
-        vector[scenarioedgepointer] getEdges()
-        
-    cdef cppclass Intersection:
-        Intersection()
-        Intersection(vector[IntersectionRoute]) except +
-        Intersection(string solFilePath) 
-        vector[shared_ptr[IntersectionNode]] getUniqueNodes()
-        vector[intersectionedgepointer] getUniqueEdges()
-        void simulate(BACKENDS_)
-        void updateMetrics(BACKENDS_)
-        void markInvalid()
-        double getMetric(METRICS_)
-
-        string getNodeXML()
-        string getEdgeXML() 
-        string getRouteXML(IntersectionScenario intersectionScenario)
-        string getSolXML()
-
-        vector[intersectionroutepointer] getRoutes()
-
     cdef map_[JUNCTIONTYPES_, string] JUNCTIONTYPES_NAMES
     cdef map_[string, VEHICLETYPES_] VEHICLETYPES_INDICES
 
@@ -76,6 +51,8 @@ cdef extern from "libiintersection.h" namespace "ii":
 
         Point3d* getLoc()
         unsigned short int getID()
+
+        void setID(unsigned short int ID)
 
 
     cdef cppclass IntersectionNode:
@@ -210,11 +187,14 @@ cdef class PyIntersection:
         self.c_intersection = Intersection(c_routes)
 
     @staticmethod
-    def fromSolFile(solFilePath):
+    def Simulate(self, PyIntersection intersection, int backend):
+        Intersection.Simulate(&intersection.c_intersection, <BACKENDS_>backend)
+
+    @staticmethod
+    def fromSolFile(str solFilePath):
         cdef PyIntersection intersection = PyIntersection()
-        cdef bytes bytes_string = solFilePath.encode()
-        intersection.c_intersection = Intersection(bytes_string)
-        return intersection    
+        intersection.c_intersection = Intersection.fromSolFile(solFilePath.encode())
+        return intersection
 
     def getUniqueNodes(self):
         cdef vector[shared_ptr[IntersectionNode]] c_unique_nodes = self.c_intersection.getUniqueNodes()
@@ -527,6 +507,9 @@ cdef class PyScenarioNodePointer:
         pytuple = (loc.x(), loc.y(), loc.z())
         return pytuple
 
+    def setID(self, int id_):
+        deref(self.c_scenarionodepointer).setID(id_)
+
     def getID(self):
         return deref(self.c_scenarionodepointer).getID()
 
@@ -547,7 +530,7 @@ cdef class PyIntersectionNodePointer:
     @staticmethod
     def fromScenarioNode(PyScenarioNodePointer sce_node):
         cdef PyIntersectionNodePointer int_node = PyIntersectionNodePointer(sce_node.getLoc(), UNREGULATED)
-        int_node.setID(sce_node.getID())
+        deref(int_node.c_intersectionnodepointer).setID(sce_node.getID())
         return int_node
 
     def getJunctionType(self):
@@ -560,6 +543,9 @@ cdef class PyIntersectionNodePointer:
 
     def getID(self):
         return deref(self.c_intersectionnodepointer).getID()
+
+    def setID(self, int id_):
+        deref(self.c_intersectionnodepointer).setID(id_)
 
     def __eq__(self, other):
         return self.getID() == other.getID()
