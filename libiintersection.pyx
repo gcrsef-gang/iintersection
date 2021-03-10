@@ -15,6 +15,9 @@ ctypedef IntersectionRoute* intersectionroutepointer
 ctypedef IntersectionEdge* intersectionedgepointer
 ctypedef ScenarioEdge* scenarioedgepointer
 
+cdef extern from "<vector>" namespace "std":
+    cdef cppclass size_t
+
 cdef extern from "libiintersection.h" namespace "ii::METRICS":
     cdef enum METRICS_:
         SAFETY, EMISSIONS, EFFICIENCY
@@ -393,20 +396,33 @@ cdef class PyIntersectionEdge:
     def setPriority(self, priority):
         self.c_intersectionedge.setPriority(priority)
 
-    def __eq__(self, PyIntersectionEdge other):
+    def __eq__(self, other):
+
+        cdef PyIntersectionEdge other_
+        cdef PyIntersectionEdgePointer other_ptr
+
         cdef vector[Point3d] self_handles = self.c_intersectionedge.getShape().getHandles()
-        # cdef IntersectionEdge other_edge = other.c_intersectionedge
-        cdef vector[Point3d] other_handles = other.c_intersectionedge.getShape().getHandles()
+        cdef vector[Point3d] other_handles
         cdef Point3d self_handle, other_handle
-        cdef int i
+        cdef size_t i
+
+        if isinstance(other, PyIntersectionEdge):
+            other_ = other
+            other_handles = other_.c_intersectionedge.getShape().getHandles()
+        elif isinstance(other, PyIntersectionEdgePointer):
+            other_ptr = other
+            other_handles = deref(other_ptr.c_intersectionedgepointer).getShape().getHandles()
+
         if self_handles.size() != other_handles.size():
             return False
+
         for i in range(self_handles.size()):
             self_handle = self_handles[i]
             other_handle = other_handles[i]
             if (self_handle.x() != other_handle.x() or self_handle.y() != other_handle.y() 
                     or self_handle.z() != other_handle.z()):
                 return False
+
         return True
 
 
@@ -458,6 +474,34 @@ cdef class PyIntersectionEdgePointer:
 
     def setPriority(self, priority):
         deref(self.c_intersectionedgepointer).setPriority(priority)
+
+    def __eq__(self, other):
+        cdef PyIntersectionEdge other_
+        cdef PyIntersectionEdgePointer other_ptr
+
+        cdef vector[Point3d] self_handles = deref(self.c_intersectionedgepointer).getShape().getHandles()
+        cdef vector[Point3d] other_handles
+        cdef Point3d self_handle, other_handle
+        cdef size_t i
+
+        if isinstance(other, PyIntersectionEdge):
+            other_ = other
+            other_handles = other_.c_intersectionedge.getShape().getHandles()
+        elif isinstance(other, PyIntersectionEdgePointer):
+            other_ptr = other
+            other_handles = deref(other_ptr.c_intersectionedgepointer).getShape().getHandles()
+
+        if self_handles.size() != other_handles.size():
+            return False
+
+        for i in range(self_handles.size()):
+            self_handle = self_handles[i]
+            other_handle = other_handles[i]
+            if (self_handle.x() != other_handle.x() or self_handle.y() != other_handle.y() 
+                    or self_handle.z() != other_handle.z()):
+                return False
+
+        return True
 
 cdef class PyScenarioEdgePointer:
 

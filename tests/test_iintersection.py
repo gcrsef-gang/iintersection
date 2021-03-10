@@ -2,6 +2,7 @@
 """
 
 import argparse
+import cProfile
 import os
 import random
 import subprocess
@@ -131,10 +132,26 @@ if __name__ == "__main__":
                         dest="generate_initial_population")
     parser.add_argument("-c", "--crossover", dest="crossover", type=str, nargs=3)
     parser.add_argument("-m", "--mutate", dest="mutate", type=str)
+    parser.add_argument("-p", "--profile", action="store_true", dest="profile")
     args = parser.parse_args()
+
+    profile_path = f"tmp/profile-{time.time()}"
+
     if args.generate_initial_population:
-        test_generate_initial_population()
+        if args.profile:
+            cProfile.run("test_generate_initial_population()", profile_path + "-init-gen.dat")
+        else:
+            test_generate_initial_population()
+
     if args.crossover:
-        test_crossover((args.crossover[0], args.crossover[1]), args.crossover[2])
+        if args.profile:
+            cProfile.run("test_crossover((args.crossover[0], args.crossover[1]), args.crossover[2])",
+                         profile_path + "-crossover.dat")
+        else:
+            test_crossover((args.crossover[0], args.crossover[1]), args.crossover[2])
+
     if args.mutate:
-        test_mutate(args.mutate)
+        if args.profile:
+            cProfile.run("test_mutate(args.mutate)", profile_path + "-mutate.dat")
+        else:
+            test_mutate(args.mutate)
