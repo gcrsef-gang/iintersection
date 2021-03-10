@@ -72,7 +72,7 @@ static const std::size_t SIMTIME_ = 604800;  // Seconds of simulation time
 
 
 namespace METRICS {enum METRICS_ {SAFETY, EMISSIONS, EFFICIENCY};}
-namespace BACKENDS {enum BACKENDS_ {SUMO, VISSIM, CITYFLOW};}
+namespace BACKENDS {enum BACKENDS_ {SUMO, VISSIM, CITYFLOW, TRACI};}
 namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK};}
 namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
 
@@ -330,11 +330,11 @@ class Intersection
 public:
     Intersection() {}
     Intersection(std::vector<IntersectionRoute> routes) : routes(routes), isValid(true) {}
-    Intersection(std::string solFilePath);
 
+    static Intersection fromSolFile(std::string solFilePath);
     static void Simulate(Intersection*, BACKENDS::BACKENDS_);
 
-    void updateMetrics(BACKENDS::BACKENDS_);
+    void updateMetrics(BACKENDS::BACKENDS_ back, int safety = -1, double efficiency = -1.0, double emissions = -1.0);
     void markInvalid() {isValid = false;}
     double getMetric(METRICS::METRICS_);
 
@@ -558,7 +558,7 @@ std::vector<ScenarioEdge*> IntersectionScenario::getEdges()
 }
 
 
-Intersection::Intersection(std::string solFilePath)
+Intersection Intersection::fromSolFile(std::string solFilePath)
 {
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(solFilePath.c_str());
@@ -650,7 +650,7 @@ Intersection::Intersection(std::string solFilePath)
         }
         routes.push_back(IntersectionRoute(routeNodes, routeEdges));
     }
-    this->routes = routes;
+    return Intersection(routes);
 }
 
 
@@ -664,12 +664,20 @@ void Intersection::Simulate(Intersection* int_, BACKENDS::BACKENDS_ back)
 }
 
 
-void Intersection::updateMetrics(BACKENDS::BACKENDS_ back)
+void Intersection::updateMetrics(BACKENDS::BACKENDS_ back, int safety, double efficiency, double emissions)
 {
-    const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
-    for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
+    if ( back == BACKENDS::TRACI )
     {
-        (SumoInterface::Get()->*(it->second))(this);
+        this->currentMetrics[METRICS::SAFETY] = safety;
+        this->currentMetrics[METRICS::EFFICIENCY] = efficiency;
+        this->currentMetrics[METRICS::EMISSIONS] = emissions;
+    } else
+    {
+        const std::map<METRICS::METRICS_, IntersectionEvalFunc> backendEvaluations = evaluations.at(back);
+        for (auto it = backendEvaluations.begin(); it != backendEvaluations.end(); it++)
+        {
+            (SumoInterface::Get()->*(it->second))(this);
+        }
     }
 }
 
@@ -677,7 +685,6 @@ void Intersection::updateMetrics(BACKENDS::BACKENDS_ back)
 double Intersection::getMetric(METRICS::METRICS_ metric)
 {
     return this->currentMetrics[metric];
-
 }
 
 std::vector<IntersectionRoute*> Intersection::getRoutes()
@@ -768,7 +775,7 @@ std::string Intersection::getEdgeXML()
     std::map<std::shared_ptr<IntersectionNode>, int> sumoNodeIDs;
     std::vector<IntersectionEdge*> edges = getUniqueEdges();
     std::vector<std::shared_ptr<IntersectionNode>> nodes = getUniqueNodes();
-    for (int i = 0; i < nodes.size(); i++) {
+    for (std::size_t i = 0; i < nodes.size(); i++) {
         sumoNodeIDs[nodes[i]] = i;
     }
 

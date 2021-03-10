@@ -131,7 +131,7 @@ cdef extern from "libiintersection.h" namespace "ii":
         vector[shared_ptr[IntersectionNode]] getUniqueNodes()
         vector[intersectionedgepointer] getUniqueEdges()
 
-        void updateMetrics(BACKENDS_)
+        void updateMetrics(BACKENDS_, int safety, double efficiency, double emissions)
         void markInvalid()
         double getMetric(METRICS_)
 
@@ -215,8 +215,8 @@ cdef class PyIntersection:
             unique_edges.append(PyIntersectionEdgePointer.fromCppPointer(edge))
         return unique_edges
 
-    def updateMetrics(self, int backend):
-        self.c_intersection.updateMetrics(<BACKENDS_>backend)
+    def updateMetrics(self, int backend, int safety = -1, float efficiency = -1, float emissions = -1):
+        self.c_intersection.updateMetrics(<BACKENDS_>backend, safety, efficiency, emissions)
 
     def markInvalid(self):
         self.c_intersection.markInvalid()
