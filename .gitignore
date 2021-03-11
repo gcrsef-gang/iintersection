@@ -12,6 +12,7 @@ libiintersection.o
 # Python
 __pycache__/
 iintersection.egg-info
+traci/*.xml
 
 # SUMO Compilation
 libsumo.a

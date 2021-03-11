@@ -8,7 +8,7 @@
         <end value="604800"/>
     </time>
     <output>
-        <collision-output value="collisions_width.xml"/>
+        <collision-output value="collisions.xml"/>
     </output>
     <processing>
         <collision.check-junctions value="true"/>

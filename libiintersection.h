@@ -77,6 +77,7 @@ namespace VEHICLETYPES {enum VEHICLETYPES_ {CAR, TRUCK};}
 namespace JUNCTIONTYPES {enum JUNCTIONTYPES_ {PRIORITY, TRAFFIC_LIGHT, RIGHT_BEFORE_LEFT, UNREGULATED, PRIORITY_STOP, TRAFFIC_LIGHT_UNREGULATED, ALLWAY_STOP, TRAFFIC_LIGHT_RIGHT_ON_RED};}
 
 const std::map<std::string, VEHICLETYPES::VEHICLETYPES_> VEHICLETYPES_INDICES = {{"car", VEHICLETYPES::CAR}, {"truck", VEHICLETYPES::TRUCK}};
+const std::map<VEHICLETYPES::VEHICLETYPES_, std::string> VEHICLETYPES_NAMES = {{VEHICLETYPES::CAR, "car"}, {VEHICLETYPES::TRUCK, "truck"}};
 const std::map<std::string, JUNCTIONTYPES::JUNCTIONTYPES_> JUNCTIONTYPES_INDICES = {{"priority", JUNCTIONTYPES::PRIORITY}, {"traffic_light", JUNCTIONTYPES::TRAFFIC_LIGHT}, {"right_before_left", JUNCTIONTYPES::RIGHT_BEFORE_LEFT}, {"unregulated", JUNCTIONTYPES::UNREGULATED}, {"priority_stop", JUNCTIONTYPES::PRIORITY_STOP}, {"traffic_light_unregulated", JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED}, {"allway_stop", JUNCTIONTYPES::ALLWAY_STOP}, {"traffic_light_on_red", JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED}};
 const std::map<JUNCTIONTYPES::JUNCTIONTYPES_, std::string> JUNCTIONTYPES_NAMES = {{JUNCTIONTYPES::PRIORITY, "priority"}, {JUNCTIONTYPES::TRAFFIC_LIGHT, "traffic_light"}, {JUNCTIONTYPES::RIGHT_BEFORE_LEFT, "right_before_left"}, {JUNCTIONTYPES::UNREGULATED, "unregulated"}, {JUNCTIONTYPES::PRIORITY_STOP, "priority_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_UNREGULATED, "traffic_light_unregulated"}, {JUNCTIONTYPES::ALLWAY_STOP, "allway_stop"}, {JUNCTIONTYPES::TRAFFIC_LIGHT_RIGHT_ON_RED, "traffic_light_on_red"}};
 
@@ -825,69 +826,64 @@ std::string Intersection::getEdgeXML()
 
 std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
 {
-    std::vector<IntersectionEdge*> uniqueEdges = getUniqueEdges();
     std::stringstream xmlStream;
 
-    xmlStream << R"(<vType id="car" length="1.6" width="1.8" height="1.5" "accel="2.9" decel="7.5" emergencyDecel="9" maxSpeed="55.55" emissionClass="PC_G_EU4" speedDev="0.1" />)"
-              << "\n"
-              << R"(<vType id="truck" length="7.1" width="2.4" height="2.4" accel="1.3" decel="4" emergencyDecel="7" maxSpeed="36" emissionClass="HDV" speedDev="0.05" />)"
-              << "\n";
+    // Open routes tag.
+    xmlStream << "<routes>" << std::endl << "\t";
+    // Defined vTypes for car and truck.
+    xmlStream << R"(<vType id="car" vClass="passenger"/>)" << std::endl;
+    xmlStream << "\t" << R"(<vType id="truck" vClass="truck" />)" << std::endl;
 
 
     std::vector<ScenarioEdge*> scenarioEdges = intersectionScenario.getEdges();    
-    std::vector<std::string> vehicleTypes {"car", "truck"};
+    std::vector<VEHICLETYPES::VEHICLETYPES_> vehicleTypes = {VEHICLETYPES::CAR, VEHICLETYPES::TRUCK};
 
-
+    std::stringstream openFlowTag;
+    std::stringstream routeTag;
     for (std::size_t i = 0; i < routes.size(); i++)
     {
         std::vector<IntersectionEdge*> routeEdges = routes[i].getEdgeList();
 
-        for (std::string vehicleType : vehicleTypes) 
+        std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
+        for (ScenarioEdge* scenarioEdge : scenarioEdges)
         {
-            std::stringstream flowTag;
-            flowTag << "\t<flow ";
-            flowTag << "id=\"flow_" << i << "\" ";
-            flowTag << "begin=\"0.00\" ";
-
-            std::string viaTag = "via\"";
-            for (std::size_t j = 0; j < routeEdges.size(); j++)
+            // If edge corresponds to current route.
+            if (routeEdges[0]->getStartNode()->getID() == scenarioEdge->getStartNode()->getID() && routeEdges[routeEdges.size()-1]->getEndNode()->getID() == scenarioEdge->getEndNode()->getID())
             {
-                for (std::size_t k = 0; k < uniqueEdges.size(); k++)
-                {
-                    IntersectionEdge* checkEdge = uniqueEdges[k];
-                    IntersectionEdge* routeEdge = routeEdges[j];
-                    if (checkEdge->getStartNode()->getID() == routeEdge->getStartNode()->getID() && checkEdge->getEndNode()->getID() == routeEdge->getEndNode()->getID()) \
-                    {
-                        if (j == 0) flowTag << "from=\"" << k << "\" ";
-                        else if (j == routeEdges.size() - 1) flowTag << "to=\"" << k << "\" "; 
-                        else if (j == 1) viaTag += k;
-                        else viaTag += " " + k;
-                        break;
-                    }
-                }
+                demand = scenarioEdge->getDemand();
             }
-
-            viaTag += "\" ";
-            flowTag << viaTag;
-            flowTag << "end=\"604800.00\" ";
-
-            std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
-
-            for (ScenarioEdge* scenarioEdge : scenarioEdges)
-            {
-                if (routeEdges[0]->getStartNode()->getID() == scenarioEdge->getStartNode()->getID() && routeEdges[routeEdges.size()-1]->getEndNode()->getID() == scenarioEdge->getEndNode()->getID())
-                {
-                    demand = scenarioEdge->getDemand();
-                }
-            }
-
-            VEHICLETYPES::VEHICLETYPES_ vehicleTypeEnum = VEHICLETYPES_INDICES.at(vehicleType);
-            flowTag << "vehsPerHour=\"" << demand[vehicleTypeEnum] << "\" ";
-            flowTag << "/>\n";
-
-            xmlStream << flowTag.str();
-            flowTag.str(std::string());
         }
+
+        // Create opening flow tag.
+        for (VEHICLETYPES::VEHICLETYPES_ vehicleType : vehicleTypes) 
+        {
+            openFlowTag << "\t<flow ";
+            // Ex. id="3v0" for the fourth flow and the first vehicle.
+            openFlowTag << "id=\"flow_" << i << "v" << vehicleType << "\" ";
+            openFlowTag << "begin=\"0.00\" ";
+            openFlowTag << "end=\"604800.00\" ";
+            openFlowTag << "vehsPerHour=\"" << demand[vehicleType] << "\" ";
+            openFlowTag << "type=\"" << VEHICLETYPES_NAMES.at(vehicleType) << "\" ";
+            openFlowTag << ">\n";
+
+            xmlStream << openFlowTag.str();
+            openFlowTag.str(std::string());
+
+            // Create route tag within flow tag.
+            routeTag << "\t\t<route edges=\"";
+            for (std::size_t e = 0; e < routeEdges.size(); e++)
+            {
+                // Add a space before the edge if it's not the first in the route.
+                if (e == 0) routeTag << e << "e";
+                else routeTag << " " << e << "e";
+            }
+            routeTag << "\" />" << std::endl;
+            xmlStream << routeTag.str();
+            routeTag.str(std::string());
+
+            xmlStream << "\t</flow>" << std::endl;
+        }
+        
     }
 
     xmlStream << "</routes>";
