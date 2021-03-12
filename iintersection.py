@@ -58,7 +58,7 @@ NEIGHBORHOOD_TYPE = "S_3"
 EDGE_REPLACEMENT_PROB = 0.1
 
 # General parameters.
-PARETO_FRONT_SIZE = 20
+PARETO_FRONT_SIZE = 4
 
 # Random number generator.
 random_selection = np.random.randint(1000000000)
@@ -644,6 +644,7 @@ def mutate(solution):
         new_nodes = nodes[:]
         new_edges = edges[:]
 
+        print("ok!")
         # Mutating edges.
         for e, edge in enumerate(edges):
             mutated = False
@@ -749,7 +750,7 @@ def mutate(solution):
                 route_.setEdgeList(edges_)
 
             new_edges.append(edge)
-
+        print("ok1!")
         # Mutating nodes.
         for node in nodes[1:-1]:
 
@@ -945,7 +946,8 @@ def update_pareto_front(pareto_front, non_dominated, dominated):
         dominated_removed = True
     pareto_front.append(non_dominated)
     if not dominated_removed:
-        pareto_front.pop(rng.choice(len(pareto_front)))
+        if len(pareto_front) == PARETO_FRONT_SIZE:
+            pareto_front.pop(rng.choice(len(pareto_front)))
 
 
 def optimize(input_scenario):
@@ -981,19 +983,26 @@ def optimize(input_scenario):
         intermediate_population = [[] for _ in range(GRID_SIDELEN)]
         sys.stdout.write(f"Iteration: {iterations}")
         for i in range(POPULATION_SIZE):
+
             sys.stdout.write(f"\r\033[92mEvaluations: {num_evaluations} \033[00m")
             sys.stdout.flush()
 
             # Produce offspring.
             pos = (i // GRID_SIDELEN, i % GRID_SIDELEN)
             print(pos)
+            print("yes!")
             neighborhood = get_neighborhood(pos, population)
+            print("yes!1")
             parents = select_parents(neighborhood)
+            print("yes!2")
             offspring = crossover(parents, input_scenario)
+            print("yes!3")
             mutate(offspring)
+            print("yes!4")
 
             # Choose an individual.
             values = evaluate_fitness(offspring, input_scenario)
+            print("yes!5")
             num_evaluations += 1
             current_individual = population[pos[0]][pos[1]]
             replacement_solution, dominant = _get_dominant_solution(current_individual, offspring)
@@ -1002,15 +1011,15 @@ def optimize(input_scenario):
             intermediate_population[pos[0]].append(replacement_solution)
             if replacement_solution is offspring and dominant:
                 update_pareto_front(est_pareto_front, replacement_solution, current_individual)
+            print("yes!6")
 
         iterations += 1
 
-        population = est_pareto_front
+        population = intermediate_population
         population_fitnesses = ["safety,emissions,efficiency"]
-        for row in population:
-            for sol in row:
-                metric_str = f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
-                population_fitnesses.append(metric_str)
+        for sol in est_pareto_front:
+            metric_str = f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
+            population_fitnesses.append(metric_str)
         with open(data_file, "w") as f:
             f.write("\n".join(population_fitnesses))
 
