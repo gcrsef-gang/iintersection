@@ -31,7 +31,8 @@ POPULATION_SIZE = 400
 GRID_SIDELEN = int(math.sqrt(POPULATION_SIZE))
 
 
-SIMULATION_TIME = 604800
+# SIMULATION_TIME = 604800
+SIMULATION_TIME = 800
 # Initial population paramters.
 NUM_NODES_MEAN = 15
 NUM_NODES_STDEV = 7
@@ -60,7 +61,9 @@ EDGE_REPLACEMENT_PROB = 0.1
 PARETO_FRONT_SIZE = 20
 
 # Random number generator.
-rng = np.random.default_rng(42069)
+random_selection = np.random.randint(1000000000)
+print(f"Selected randomness seed: {random_selection}")
+rng = np.random.default_rng(random_selection)
 
 
 def _get_squared_distance(p1, p2):
@@ -501,8 +504,6 @@ def generate_inital_population(input_scenario, output_dir=None):
             with open(os.path.join(output_dir, f"{i + 1}.edg.xml"), "w+") as f:
                 f.write(intersection.getEdgeXML())
 
-    print()
-
     return intersections
 
 
@@ -596,11 +597,12 @@ def crossover(parents, input_scenario):
     Intersection
         The result of crossing over the two parents.
     """
-    all_edges = set()
+    all_edges = []
     for parent in parents:
         for route in parent.getRoutes():
             for edge in route.getEdgeList():
-                all_edges.add(edge)
+                if edge not in all_edges:
+                    all_edges.append(edge)
 
     child_routes = []
     for scenario_edge in input_scenario.getEdges():
@@ -640,35 +642,15 @@ def mutate(solution):
         nodes = route.getNodeList()
         edges = route.getEdgeList()
         new_nodes = nodes[:]
-        new_edges = []
+        new_edges = edges[:]
 
         # Mutating edges.
         for e, edge in enumerate(edges):
-
-            if rng.random() < MUTATION_PROB:
-                # Adding a new node to the route:
-                # replacing this edge with two new edges and one new node.
-                if rng.choice(2):
-                    # Create new node.
-                    loc = _sample_expanded_bbox(edge.getStartNode().getLoc(),
-                                                edge.getEndNode().getLoc(), 1)[0]
-                    junction_type = rng.choice(list(JUNCTIONTYPES.values()))
-                    new_node = IntersectionNodePointer(tuple(loc), junction_type)
-                else:
-                    # Choose existing node.
-                    new_node = rng.choice([node for route_ in routes for node in route_.getNodeList()])
-                new_nodes.insert(new_nodes.index(edge.getStartNode()), new_node)
-                # Create new edges.
-                for _ in range(2):
-                    repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
-                    new_edges.insert(e, _transform_edge(edge.getStartNode(),
-                                                        edge.getEndNode(), repl_edge))
-                continue
-
             mutated = False
+            if mutated == True:
+                break
             handles = edge.getShape().getHandles()
             if rng.random() < MUTATION_PROB:
-                mutated = True
                 # Mutation types: 0 - remove handle, 1 - change handle, 2 - add handle.
                 num_handles = len(handles)
                 if num_handles == 0:
@@ -693,10 +675,37 @@ def mutate(solution):
                         i = 1
                     handles.insert(i, _sample_expanded_bbox(edge.getStartNode().getLoc(),
                                                             edge.getEndNode().getLoc(), 1)[0])
+
             edge.setHandles(handles)
 
+            ids = [node.getID() for node in new_nodes]
             if rng.random() < MUTATION_PROB:
                 mutated = True
+                # Adding a new node to the route:
+                # replacing this edge with two new edges and one new node.
+                if rng.choice(2):
+                    # Create new node.
+                    loc = _sample_expanded_bbox(edge.getStartNode().getLoc(),
+                                                edge.getEndNode().getLoc(), 1)[0]
+                    junction_type = rng.choice(list(JUNCTIONTYPES.values()))
+                    new_node = IntersectionNodePointer(tuple(loc), junction_type)
+                else:
+                    # Choose existing node.
+                    new_node = rng.choice([node for route_ in routes for node in route_.getNodeList()])
+                try:
+                    pos = ids.index(edge.getStartNode().getID())+1
+                    new_nodes = new_nodes[:pos] + [new_node] + new_nodes[pos:] 
+                except: 
+                    continue
+                # Create new edges.
+                for _ in range(2):
+                    repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
+                    new_edges.insert(e, _transform_edge(edge.getStartNode(),
+                                                        edge.getEndNode(), repl_edge))
+                continue
+
+
+            if rng.random() < MUTATION_PROB:
                 current_speed_limit = edge.getSpeedLimit()
                 if current_speed_limit == 1:
                     edge.setSpeedLimit(2)
@@ -707,7 +716,6 @@ def mutate(solution):
                         edge.setSpeedLimit(current_speed_limit + 1)
 
             if rng.random() < MUTATION_PROB:
-                mutated = True
                 current_lane_num = edge.getNumLanes()
                 if current_lane_num == 1:
                     edge.setNumLanes(2)
@@ -718,7 +726,6 @@ def mutate(solution):
                         edge.setNumLanes(current_lane_num + 1)
 
             if rng.random() < MUTATION_PROB:
-                mutated = True
                 current_priority = edge.getSpeedLimit()
                 if current_priority == 1:
                     edge.setPriority(2)
@@ -839,11 +846,11 @@ def mutate(solution):
                         new_nodes_route_ = route_.getNodeList()
                         new_nodes_route_[node_index] = node
                         route_.setNodeList(new_nodes_route_)
-        if new_edges == []:
-            raise Exception("Flagged!")
-        # In-place on Intersection object because getRoutes() returns route pointers.
-        route.setNodeList(new_nodes)
-        route.setEdgeList(new_edges)
+        if new_edges != []:
+            if new_nodes != []:
+                # In-place on Intersection object because getRoutes() returns route pointers.
+                route.setNodeList(new_nodes)
+                route.setEdgeList(new_edges)
 
 
 def evaluate_fitness(solution, input_scenario):
@@ -870,24 +877,34 @@ def evaluate_fitness(solution, input_scenario):
             f.write(solution.getNodeXML())
         with open("traci/traci.edg.xml", "w+") as f:
             f.write(solution.getEdgeXML())
-        subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml"])
+        subprocess.run(["netconvert", "-n", "traci/traci.nod.xml", "-e", "traci/traci.edg.xml", "-o", "traci/traci.net.xml", "-W"])
         with open("traci/traci.rou.xml", "w+") as f:
             f.write(solution.getRouteXML(input_scenario))
 
-        traci.start(["sumo", "-c", "traci/traci.sumocfg"])
+        try:
+            traci.start(["sumo", "-c", "traci/traci.sumocfg", "-W"])
+        except:
+            solution.updateMetrics(BACKEND, 1e9, 1e9, 1e9)
+            return 1e9, 1e9, 1e9
+
         step = 0
         simulation_emissions = 0
         simulation_collisions = 0
         simulation_travel_times = 0
         while step < SIMULATION_TIME:
-            traci.simulationStep()
+            try:
+                traci.simulationStep()
+            except:
+                solution.updateMetrics(BACKEND, 1e9, 1e9, 1e9)
+                return 1e9, 1e9, 1e9
+            step += 1
 
             emissions_sum = 0
             vehicle_id_list = traci.vehicle.getIDList()
             for vehicle_id in vehicle_id_list:
                 emissions_sum += traci.vehicle.getCO2Emission(vehicle_id)
 
-            collisions_num = traci.simulation.getCollidingVehiclesNumber("0")
+            collisions_num = traci.simulation.getCollidingVehiclesNumber()
 
             travel_times_sum = 0
             edge_ids = traci.edge.getIDList()
@@ -898,11 +915,12 @@ def evaluate_fitness(solution, input_scenario):
             simulation_emissions += emissions_sum
             simulation_collisions += collisions_num
             simulation_travel_times += travel_times_sum
-        Intersection.updateMetrics(BACKEND, simulation_collisions, simulation_travel_times, simulation_emissions)
+        traci.close()
+        solution.updateMetrics(BACKEND, simulation_collisions, simulation_travel_times, simulation_emissions)
         return simulation_collisions, simulation_travel_times, simulation_emissions
     else:
         Intersection.Simulate(solution, BACKEND)
-        solution.updateMetrics(BACKEND)
+        solution.updateMetrics(BACKEND, simulation_collisions, simulation_travel_times, simulation_emissions)
     return solution.getMetric(METRICS["safety"]), solution.getMetric(METRICS["efficiency"]), solution.getMetrics(METRICS["emissions"])
 
 def update_pareto_front(pareto_front, non_dominated, dominated):
@@ -946,18 +964,29 @@ def optimize(input_scenario):
     for row in population:
         for solution in row:
             evaluate_fitness(solution, input_scenario)
-    num_evaluations = POPULATION_SIZE
+    try:
+        os.mkdir("evaluations")
+    except FileExistsError:
+        pass
+    try:
+        os.mkdir("solutions")
+    except FileExistsError:
+        pass
+    data_file = f"evaluations/evaluations-{round(time.time(), 5)}.dat"
 
-    data_file = f"evaluations-{time.time()}.dat"
-    with open(data_file, "w+") as f:
-        f.write(str(POPULATION_SIZE) + "\n")
-
+    num_evaluations = 0
+    iterations = 1
     # Mainloop:
     while num_evaluations < MAX_EVALUATIONS:
         intermediate_population = [[] for _ in range(GRID_SIDELEN)]
+        sys.stdout.write(f"Iteration: {iterations}")
         for i in range(POPULATION_SIZE):
+            sys.stdout.write(f"\r\033[92mEvaluations: {num_evaluations} \033[00m")
+            sys.stdout.flush()
+
             # Produce offspring.
             pos = (i // GRID_SIDELEN, i % GRID_SIDELEN)
+            print(pos)
             neighborhood = get_neighborhood(pos, population)
             parents = select_parents(neighborhood)
             offspring = crossover(parents, input_scenario)
@@ -974,17 +1003,28 @@ def optimize(input_scenario):
             if replacement_solution is offspring and dominant:
                 update_pareto_front(est_pareto_front, replacement_solution, current_individual)
 
-            sys.stdout.write(f"\r\033[92mEvaluations: {num_evaluations} \033[00m")
-            sys.stdout.flush()
-        population = intermediate_population
-        population_fitnesses = [
-            f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
-            for sol in population]
-        with open(data_file, "a") as f:
-            f.write("\t".join(population_fitnesses))
+        iterations += 1
 
-    print()
+        population = est_pareto_front
+        population_fitnesses = ["safety,emissions,efficiency"]
+        for row in population:
+            for sol in row:
+                metric_str = f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
+                population_fitnesses.append(metric_str)
+        with open(data_file, "w") as f:
+            f.write("\n".join(population_fitnesses))
 
+    node_output_files = [f"solutions/sol_intersection_{i}.nod.xml" for i in range(len(est_pareto_front))]
+    edge_output_files = [f"solutions/sol_intersection_{i}.edg.xml" for i in range(len(est_pareto_front))]
+    sol_output_files = [f"solutions/sol_intersection_{i}.sol.xml" for i in range(len(est_pareto_front))]
+    for i, intersection in enumerate(est_pareto_front):
+        with open(node_output_files[i], "w+") as f:
+            f.write(node_output_files[i], intersection.getNodeXML())
+        with open(edge_output_files[i], "w+") as f:
+            f.write(edge_output_files[i], intersection.getEdgeXML())
+        with open(sol_output_files[i], "w+") as f:
+            f.write(sol_output_files[i])
+        subprocess.run(["netconvert", "-n", "solutions/sol_intersection_{i}.nod.xml", "-e", "solutions/sol_intersection_{i}.edg.xml", "-o", "solutions/sol_intersection_{i}.net.xml", "-W"])
     return est_pareto_front
 
 
@@ -1005,7 +1045,7 @@ if __name__ == "__main__":
     if args.backend:
             BACKEND = BACKENDS[args.backend]
     if args.max_evaluations:
-        MAX_EVALUATIONS = args.max_evaluations
+        MAX_EVALUATIONS = int(args.max_evaluations)
     if args.population_size:
         if math.sqrt(args.population_size) % 1 != 0:
             raise ValueError("Population size must be a perfect square.")
@@ -1015,14 +1055,14 @@ if __name__ == "__main__":
     # Run optimization algorithm.
     optimized_intersections = optimize(input_scenario)
 
-    # Output optimized intersections.
-    node_output_files = [f"sol_intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
-    edge_output_files = [f"sol_intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
-    sol_output_files = [f"sol_intersection_{i}.sol.xml" for i in range(len(optimized_intersections))]
-    for i, intersection in enumerate(optimized_intersections):
-        with open(node_output_files[i], "w+") as f:
-            f.write(node_output_files[i], intersection.getNodeXML())
-        with open(edge_output_files[i], "w+") as f:
-            f.write(edge_output_files[i], intersection.getEdgeXML())
-        with open(sol_output_files[i], "w+") as f:
-            f.write(sol_output_files[i])
+    # # Output optimized intersections.
+    # node_output_files = [f"sol_intersection_{i}.nod.xml" for i in range(len(optimized_intersections))]
+    # edge_output_files = [f"sol_intersection_{i}.edg.xml" for i in range(len(optimized_intersections))]
+    # sol_output_files = [f"sol_intersection_{i}.sol.xml" for i in range(len(optimized_intersections))]
+    # for i, intersection in enumerate(optimized_intersections):
+    #     with open(node_output_files[i], "w+") as f:
+    #         f.write(node_output_files[i], intersection.getNodeXML())
+    #     with open(edge_output_files[i], "w+") as f:
+    #         f.write(edge_output_files[i], intersection.getEdgeXML())
+    #     with open(sol_output_files[i], "w+") as f:
+    #         f.write(sol_output_files[i])

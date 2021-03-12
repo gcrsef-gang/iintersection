@@ -5,12 +5,6 @@
     </input>
     <time>
         <begin value="0"/>
-        <end value="604800"/>
+        <end value="800"/>
     </time>
-    <output>
-        <collision-output value="collisions.xml"/>
-    </output>
-    <processing>
-        <collision.check-junctions value="true"/>
-    </processing>
 </configuration>

@@ -755,7 +755,7 @@ std::string Intersection::getNodeXML()
         Point3d* nodeLoc = nodes[i]->getLoc();
 
         nodeTag << "\t<node ";
-        nodeTag << "id=\"" << i << "\" ";
+        nodeTag << "id=\"" << nodes[i]->getID() << "\" ";
         nodeTag << "x=\"" << nodeLoc->x() / 10.0 << "\" ";
         nodeTag << "y=\"" << nodeLoc->y() / 10.0 << "\" ";
         nodeTag << "z=\"" << nodeLoc->z() / 10.0 << "\" ";        
@@ -777,7 +777,7 @@ std::string Intersection::getEdgeXML()
     std::vector<IntersectionEdge*> edges = getUniqueEdges();
     std::vector<std::shared_ptr<IntersectionNode>> nodes = getUniqueNodes();
     for (std::size_t i = 0; i < nodes.size(); i++) {
-        sumoNodeIDs[nodes[i]] = i;
+        sumoNodeIDs[nodes[i]] = nodes[i]->getID();
     }
 
     // A map which just holds vectors of start and end ids, in order to make sure there are not duplicate edges
@@ -787,7 +787,7 @@ std::string Intersection::getEdgeXML()
 
     for (std::size_t i = 0; i < edges.size(); i++)
     {
-        if (edges[i]->getStartNode() == edges[i]->getEndNode()) {
+        if (edges[i]->getStartNode()->getID() == edges[i]->getEndNode()->getID()) {
             continue;
         }
         if (connections[edges[i]->getStartNode()->getID()] == edges[i]->getEndNode()->getID()) {
@@ -795,8 +795,10 @@ std::string Intersection::getEdgeXML()
         }
         connections[edges[i]->getStartNode()->getID()] = edges[i]->getEndNode()->getID();
         edgeTag << "\t<edge id=\"" << i << "e\" ";
-        edgeTag << "from=\"" << sumoNodeIDs[edges[i]->getStartNode()] << "\" ";
-        edgeTag << "to=\"" << sumoNodeIDs[edges[i]->getEndNode()] << "\" ";
+        // edgeTag << "from=\"" << sumoNodeIDs[edges[i]->getStartNode()] << "\" ";
+        // edgeTag << "to=\"" << sumoNodeIDs[edges[i]->getEndNode()] << "\" ";
+        edgeTag << "from=\"" << edges[i]->getStartNode()->getID() << "\" ";
+        edgeTag << "to=\"" << edges[i]->getEndNode()->getID() << "\" ";
         edgeTag << "priority=\"" << edges[i]->getPriority() << "\" ";
         edgeTag << "numLanes=\"" << edges[i]->getNumLanes() << "\" ";
         edgeTag << "speed=\"" << edges[i]->getSpeedLimit() << "\" ";
@@ -834,7 +836,23 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
     xmlStream << R"(<vType id="car" vClass="passenger"/>)" << std::endl;
     xmlStream << "\t" << R"(<vType id="truck" vClass="truck" />)" << std::endl;
 
-
+    std::vector<int> edgeStartIDList;
+    std::vector<int> edgeEndIDList;
+    std::vector<int> edgeIDList;
+    std::map<short int, short int> connections;
+    std::vector<IntersectionEdge*> edges = this->getUniqueEdges();
+    for (int i = 0; i < edges.size(); i++) {
+        if (edges[i]->getStartNode()->getID() == edges[i]->getEndNode()->getID()) {
+            continue;
+        }
+        if (connections[edges[i]->getStartNode()->getID()] == edges[i]->getEndNode()->getID()) {
+            continue;
+        }
+        connections[edges[i]->getStartNode()->getID()] = edges[i]->getEndNode()->getID();
+        edgeStartIDList.push_back(edges[i]->getStartNode()->getID());
+        edgeEndIDList.push_back(edges[i]->getEndNode()->getID());
+        edgeIDList.push_back(i);
+    }
     std::vector<ScenarioEdge*> scenarioEdges = intersectionScenario.getEdges();    
     std::vector<VEHICLETYPES::VEHICLETYPES_> vehicleTypes = {VEHICLETYPES::CAR, VEHICLETYPES::TRUCK};
 
@@ -843,7 +861,6 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
     for (std::size_t i = 0; i < routes.size(); i++)
     {
         std::vector<IntersectionEdge*> routeEdges = routes[i].getEdgeList();
-
         std::map<VEHICLETYPES::VEHICLETYPES_, short int> demand;
         for (ScenarioEdge* scenarioEdge : scenarioEdges)
         {
@@ -851,6 +868,7 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
             if (routeEdges[0]->getStartNode()->getID() == scenarioEdge->getStartNode()->getID() && routeEdges[routeEdges.size()-1]->getEndNode()->getID() == scenarioEdge->getEndNode()->getID())
             {
                 demand = scenarioEdge->getDemand();
+                break;
             }
         }
 
@@ -861,7 +879,8 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
             // Ex. id="3v0" for the fourth flow and the first vehicle.
             openFlowTag << "id=\"flow_" << i << "v" << vehicleType << "\" ";
             openFlowTag << "begin=\"0.00\" ";
-            openFlowTag << "end=\"604800.00\" ";
+            // openFlowTag << "end=\"604800.00\" ";
+            openFlowTag << "end=\"800.00\" ";
             openFlowTag << "vehsPerHour=\"" << demand[vehicleType] << "\" ";
             openFlowTag << "type=\"" << VEHICLETYPES_NAMES.at(vehicleType) << "\" ";
             openFlowTag << ">\n";
@@ -873,9 +892,15 @@ std::string Intersection::getRouteXML(IntersectionScenario intersectionScenario)
             routeTag << "\t\t<route edges=\"";
             for (std::size_t e = 0; e < routeEdges.size(); e++)
             {
-                // Add a space before the edge if it's not the first in the route.
-                if (e == 0) routeTag << e << "e";
-                else routeTag << " " << e << "e";
+                for (int f = 0; f < edgeStartIDList.size(); f++) {
+                    if (edgeStartIDList[f] == routeEdges[e]->getStartNode()->getID() && edgeEndIDList[f] == routeEdges[e]->getEndNode()->getID()) {
+                        // Add a space before the edge if it's not the first in the route.
+                        if (e == 0) routeTag << edgeIDList[f] << "e";
+                        else routeTag << " " << edgeIDList[f] << "e";
+                        break;
+                    }
+                }
+                // int id = edgeIDList.at({routeEdges[e]->getStartNode()->getID(), routeEdges[e]->getEndNode()->getID()});
             }
             routeTag << "\" />" << std::endl;
             xmlStream << routeTag.str();
