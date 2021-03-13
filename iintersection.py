@@ -772,12 +772,14 @@ def mutate(solution):
                         parents.append(edge.getStartNode())
                 # Add replacement edges for disconnected neighbors.
                 to_remove_edges = {edge.getStartNode().getID() : edge.getEndNode().getID() for edge in to_remove}
-                # new_edges = []
+                start_ids_list = list(to_remove_edges.keys())
+                print(start_ids_list)
+                print(new_edges)
                 for edge in new_edges:
-                    if edge.getStartNode().getID() in list(to_remove_edges.keys()):
-                        if to_remove_edges[edge.getStartNode().getID()] != edge.getEndNode().getID():
-                            new_edges.append(edge)
-                # new_edges = [edge for edge in new_edges if to_remove_nodes[edge.getStartNode().getID()] != edge.getEndNode().getID()]
+                    if edge.getStartNode().getID() in start_ids_list:
+                        if to_remove_edges[edge.getStartNode().getID()] == edge.getEndNode().getID():
+                            new_edges.remove(edge)
+                # new_edges = [edge for edge in new_edges if to_remove_edges[edge.getStartNode().getID()] != edge.getEndNode().getID()]
                 for child in children:
                     for parent in parents:
                         repl_edge = rng.choice([edge for route_ in routes for edge in route_.getEdgeList()])
@@ -819,7 +821,6 @@ def mutate(solution):
                             repl_edge = rng.choice([edge for route__ in routes for edge in route__.getEdgeList()])
                             new_edges_route_.append(_transform_edge(parent, child, repl_edge))
                     route_.setEdgeList(new_edges_route_)
-
                 continue
 
             if rng.random() < MUTATION_PROB:
@@ -974,7 +975,6 @@ def optimize(input_scenario):
         os.mkdir("solutions")
     except FileExistsError:
         pass
-    data_file = f"evaluations/evaluations-{round(time.time(), 5)}.dat"
 
     num_evaluations = 0
     iterations = 1
@@ -1013,27 +1013,41 @@ def optimize(input_scenario):
                 update_pareto_front(est_pareto_front, replacement_solution, current_individual)
             print("yes!6")
 
+            node_output_file = f"solutions/sol_intersection_{i}.nod.xml"
+            edge_output_file = f"solutions/sol_intersection_{i}.edg.xml"
+            sol_output_file = f"solutions/sol_intersection_{i}.sol.xml"
+            with open(node_output_file, "w+") as f:
+                f.write(replacement_solution.getNodeXML())
+            with open(edge_output_file, "w+") as f:
+                f.write(replacement_solution.getEdgeXML())
+            with open(sol_output_file, "w+") as f:
+                f.write(replacement_solution.getSolXML())
+
+        data_file = f"evaluations/iteration-{iterations}.dat"
         iterations += 1
 
         population = intermediate_population
         population_fitnesses = ["safety,emissions,efficiency"]
-        for sol in est_pareto_front:
-            metric_str = f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
-            population_fitnesses.append(metric_str)
+        for row in population:
+            for sol in row:
+                metric_str = f"{sol.getMetric(METRICS['safety'])},{sol.getMetric(METRICS['emissions'])},{sol.getMetric(METRICS['efficiency'])}"
+                population_fitnesses.append(metric_str)
         with open(data_file, "w") as f:
             f.write("\n".join(population_fitnesses))
-
-    node_output_files = [f"solutions/sol_intersection_{i}.nod.xml" for i in range(len(est_pareto_front))]
-    edge_output_files = [f"solutions/sol_intersection_{i}.edg.xml" for i in range(len(est_pareto_front))]
-    sol_output_files = [f"solutions/sol_intersection_{i}.sol.xml" for i in range(len(est_pareto_front))]
-    for i, intersection in enumerate(est_pareto_front):
-        with open(node_output_files[i], "w+") as f:
-            f.write(node_output_files[i], intersection.getNodeXML())
-        with open(edge_output_files[i], "w+") as f:
-            f.write(edge_output_files[i], intersection.getEdgeXML())
-        with open(sol_output_files[i], "w+") as f:
-            f.write(sol_output_files[i])
-        subprocess.run(["netconvert", "-n", "solutions/sol_intersection_{i}.nod.xml", "-e", "solutions/sol_intersection_{i}.edg.xml", "-o", "solutions/sol_intersection_{i}.net.xml", "-W"])
+        # try:
+        #     node_output_files = [f"solutions/sol_intersection_{i}.nod.xml" for i in range(len(est_pareto_front))]
+        #     edge_output_files = [f"solutions/sol_intersection_{i}.edg.xml" for i in range(len(est_pareto_front))]
+        #     sol_output_files = [f"solutions/sol_intersection_{i}.sol.xml" for i in range(len(est_pareto_front))]
+        #     for i, intersection in enumerate(est_pareto_front):
+        #         with open(node_output_files[i], "w+") as f:
+        #             f.write(node_output_files[i], intersection.getNodeXML())
+        #         with open(edge_output_files[i], "w+") as f:
+        #             f.write(edge_output_files[i], intersection.getEdgeXML())
+        #         with open(sol_output_files[i], "w+") as f:
+        #             f.write(sol_output_files[i])
+        #     subprocess.run(["netconvert", "-n", "solutions/sol_intersection_{i}.nod.xml", "-e", "solutions/sol_intersection_{i}.edg.xml", "-o", "solutions/sol_intersection_{i}.net.xml", "-W"])
+        # except:
+        #     pass
     return est_pareto_front
 
 
